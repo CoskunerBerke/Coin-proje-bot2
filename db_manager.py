@@ -163,6 +163,18 @@ class HybridDatabaseManager:
                 chat_info = res.json()
                 pinned = chat_info.get("result", {}).get("pinned_message", {})
                 if pinned and pinned.get("document"):
+                    # 🛡️ Pin çatışma koruması: Sadece BU botun gönderdiği pinli mesajı oku
+                    pinned_sender_id = pinned.get("from", {}).get("id", 0)
+                    my_info = requests.get(f"https://api.telegram.org/bot{token}/getMe", timeout=5).json()
+                    my_bot_id = my_info.get("result", {}).get("id", 0)
+                    
+                    if pinned_sender_id != my_bot_id:
+                        # Başka botun pinli mesajı, atlayarak devam et
+                        if not getattr(self, '_pinned_not_found_logged', False):
+                            add_log(f"ℹ️ Telegram Cloud Sync: Pinli mesaj başka bota ait (ID: {pinned_sender_id}), atlanıyor.")
+                            self._pinned_not_found_logged = True
+                        return
+                    
                     doc = pinned["document"]
                     file_id = doc["file_id"]
                     
@@ -311,9 +323,9 @@ class HybridDatabaseManager:
                 if send_res.get("ok"):
                     message_id = send_res["result"]["message_id"]
                     
-                    # 2. Unpin the currently pinned message (keeps chat clean)
-                    url_unpin = f"https://api.telegram.org/bot{token}/unpinChatMessage"
-                    requests.post(url_unpin, data={"chat_id": chat_id}, timeout=10)
+                    # 2. Diğer botun pinini BOZMA (aynı grupta 2 bot çalışıyor)
+                    # url_unpin = f"https://api.telegram.org/bot{token}/unpinChatMessage"
+                    # requests.post(url_unpin, data={"chat_id": chat_id}, timeout=10)
                     
                     # 3. Pin the newly uploaded backup message
                     url_pin = f"https://api.telegram.org/bot{token}/pinChatMessage"
