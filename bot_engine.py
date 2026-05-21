@@ -138,7 +138,7 @@ def run_engine():
     last_memory_report_time = 0
     last_cf_update_time = 0  # 🔮 Counterfactual güncelleme zamanlayıcısı
     
-    scan_interval = 40     # 40 Saniyede bir tüm fırsatları tara (1m Grafik senkronizasyonu)
+    scan_interval = 25     # 25 Saniyede bir tüm fırsatları tara (Agresif: daha hızlı tepki)
     pnl_check_interval = 15 # 15 Saniyede bir açık pozisyonları güncelle (SL/TP)
     
     while True:
@@ -156,6 +156,14 @@ def run_engine():
             tg_active = settings.get("tg_active", False)
             tg_token = settings.get("tg_token", "")
             tg_chat_id = settings.get("tg_chat_id", "")
+            
+            # 📱 Render'da çalışıyorsa environment variable'dan Telegram bilgilerini al
+            env_tg_token = os.getenv("TELEGRAM_TOKEN", "")
+            env_tg_chat_id = os.getenv("TELEGRAM_CHAT_ID", "")
+            if env_tg_token and env_tg_chat_id:
+                tg_active = True
+                tg_token = env_tg_token
+                tg_chat_id = env_tg_chat_id
             
             # Alım-Satım Yöneticisini Güncel Mod ile Ayarla
             executor.simulation_mode = sim_mode

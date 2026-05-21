@@ -35,31 +35,31 @@ AI_MODE = "LEARN_AND_APPLY"  # LEARN_AND_APPLY = öğrenmeye devam et + öğrend
 # Bu kurallar subjektif prompt ifadelerini ("healthy volatility", "strong confidence")
 # sayısal, tekrarlanabilir ve deterministik filtrelere dönüştürür.
 INSTITUTIONAL_THRESHOLDS = {
-    "funding_overcrowded_long": 0.03,    # Funding > 0.03 → Long tarafı aşırı kalabalık, LONG yasak
-    "funding_overcrowded_short": -0.03,  # Funding < -0.03 → Short tarafı aşırı kalabalık, SHORT yasak
-    "oi_spike_threshold": 8.0,           # OI değişimi > %8 → Squeeze riski, işlem yasak
-    "atr_anomaly_multiplier": 2.0,       # ATR > 20-periyot ortalamasının 2 katı → Volatilite anomalisi
-    "volume_min_ratio": 0.3,             # Volume ratio < 0.5 → Yetersiz hacim, işlem yasak
-    "min_rr_ratio": 1.0,                 # Risk/Ödül < 1:1.5 → İşlem yasak (eski: 1:1, RANGE R:R=1.67 geçer)
-    "min_direction_vote": 0.08,          # Yön oyu < 0.08 → Kararsız, NEUTRAL kal (eski: 0.01)
-    "min_ev_threshold": -0.10,           # EV <= -0.10 → Negatif beklenen değer, işlem yasak (eski: -0.5)
-    "min_quality_score": 20,             # Kalite < 40/100 → Düşük kalite, işlem yasak (eski: 30)
-    "max_daily_consecutive_losses": 2,   # Gün içi üst üste 2 stop → O gün işlem yasak
-    "max_daily_loss_pct": 3.0,           # Günlük toplam zarar > %3 → O gün işlem yasak
+    "funding_overcrowded_long": 0.05,    # Funding > 0.05 → Long tarafı aşırı kalabalık (agresif: 0.03→0.05)
+    "funding_overcrowded_short": -0.05,  # Funding < -0.05 → Short tarafı aşırı kalabalık (agresif: -0.03→-0.05)
+    "oi_spike_threshold": 12.0,          # OI değişimi > %12 → Squeeze riski (agresif: 8→12)
+    "atr_anomaly_multiplier": 3.0,       # ATR > 20-periyot ortalamasının 3 katı (agresif: 2→3)
+    "volume_min_ratio": 0.15,            # Volume ratio < 0.15 → Yetersiz hacim (agresif: 0.5→0.15)
+    "min_rr_ratio": 0.8,                 # Risk/Ödül < 1:0.8 → İşlem yasak (agresif: 1.5→0.8)
+    "min_direction_vote": 0.04,          # Yön oyu < 0.04 → Kararsız (agresif: 0.08→0.04)
+    "min_ev_threshold": -0.25,           # EV <= -0.25 → Negatif beklenen değer (agresif: -0.10→-0.25)
+    "min_quality_score": 15,             # Kalite < 15/100 → Düşük kalite (agresif: 40→15)
+    "max_daily_consecutive_losses": 4,   # Gün içi üst üste 4 stop → O gün yasak (agresif: 2→4)
+    "max_daily_loss_pct": 5.0,           # Günlük toplam zarar > %5 → O gün yasak (agresif: 3→5)
 }
 
 BOT_SETTINGS = {
     "is_active": False,
     "simulation_mode": True,
     "starting_balance": 1000.0,
-    "min_confidence": 20,
-    "risk_per_trade": 0.05,
-    "leverage": 3,
-    "max_active_trades": 4,
-    "weak_momentum_profit_take_pct": 3.00,
-    "tp1_profit_take_pct": 4.50,
-    "trailing_activation_pct": 4.50,
-    "signal_invalidation_threshold": 88.0,
+    "min_confidence": 15,
+    "risk_per_trade": 0.08,
+    "leverage": 5,
+    "max_active_trades": 6,
+    "weak_momentum_profit_take_pct": 2.50,
+    "tp1_profit_take_pct": 3.50,
+    "trailing_activation_pct": 3.50,
+    "signal_invalidation_threshold": 85.0,
 }
 
 # ─── Aktif Taranacak Coinler ────────────────────────────────────────────────
