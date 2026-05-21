@@ -49,7 +49,7 @@ INSTITUTIONAL_THRESHOLDS = {
 }
 
 BOT_SETTINGS = {
-    "is_active": False,
+    "is_active": True,
     "simulation_mode": True,
     "starting_balance": 1000.0,
     "min_confidence": 20,
