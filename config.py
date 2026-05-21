@@ -39,7 +39,7 @@ INSTITUTIONAL_THRESHOLDS = {
     "funding_overcrowded_short": -0.04,  # Funding < -0.04 → Short tarafı aşırı kalabalık
     "oi_spike_threshold": 10.0,          # OI değişimi > %10 → Squeeze riski
     "atr_anomaly_multiplier": 2.5,       # ATR > 20-periyot ortalamasının 2.5 katı
-    "volume_min_ratio": 0.25,            # Volume ratio < 0.25 → Yetersiz hacim (geri sıkılaştırıldı)
+    "volume_min_ratio": 0.10,            # Volume ratio < 0.10 → Yetersiz hacim (BTC/SOL yüksek likidite)
     "min_rr_ratio": 1.2,                 # Risk/Ödül < 1:1.2 → İşlem yasak (karlılık koruması)
     "min_direction_vote": 0.05,          # Yön oyu < 0.05 → Kararsız
     "min_ev_threshold": -0.05,           # EV <= -0.05 → Negatif beklenen değer (sıkı tutuldu)

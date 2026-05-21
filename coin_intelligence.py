@@ -320,7 +320,7 @@ class CoinIntelligenceManager:
             elif regime == "HIGH VOLATILITY":
                 edge_val = 0.9 * dna["breakout_reliability"]
                 
-            edge_val = max(edge_val, 0.50)  # Prevents cold-start RANGE setups from failing the 0.40 threshold
+            edge_val = max(edge_val, 0.65)  # Cold-start: BTC/SOL için gerçekçi başlangıç edge
             return {
                 "edge_multiplier": edge_val,
                 "drawdown_risk": "Düşük",
@@ -392,7 +392,7 @@ class CoinIntelligenceManager:
         elif dna["fakeout_prob"] > 0.65 and regime == "RANGE":
             is_approved = False
             reject_reason = "Yüksek Fakeout Riski (Coine özel DNA engeli)"
-        elif final_score < 20.0: # SNIPER: Minimum eşik 8→20 (kaliteli işlem koruması)
+        elif final_score < 12.0: # Agresif ama kaliteli: çöp işlemleri filtrele, makul sinyallere izin ver
             is_approved = False
             reject_reason = f"Düşük Kuantum Zeka Skoru ({final_score:.1f})"
 
