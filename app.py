@@ -404,6 +404,12 @@ def manage_settings():
             settings["tg_chat_id"] = env_chat
         if env_data_chat and not settings.get("tg_data_chat_id"):
             settings["tg_data_chat_id"] = env_data_chat
+        
+        # 🔒 SABİT DEĞERLER: Frontend her zaman doğru göstersin
+        settings["bot_active"] = True
+        settings["sim_mode"] = True
+        settings["leverage"] = 3
+        
         return jsonify(settings)
 
 @app.route("/api/logs", methods=["GET"])
