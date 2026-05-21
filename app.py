@@ -350,8 +350,8 @@ def send_memory_report_telegram():
     """Hafıza raporunu Telegram'a gönderir."""
     try:
         settings = load_app_settings()
-        token = settings.get("tg_token", "")
-        chat_id = settings.get("tg_chat_id", "")
+        token = os.getenv("TELEGRAM_TOKEN", settings.get("tg_token", ""))
+        chat_id = os.getenv("TELEGRAM_CHAT_ID", settings.get("tg_chat_id", ""))
         if not token or not chat_id:
             return jsonify({"success": False, "message": "Telegram ayarları eksik."}), 400
         
@@ -392,7 +392,19 @@ def manage_settings():
         except Exception as e:
             return jsonify({"status": "error", "message": str(e)}), 500
     else:
-        return jsonify(load_app_settings())
+        settings = load_app_settings()
+        # Render env vars override empty settings for Telegram
+        env_token = os.getenv("TELEGRAM_TOKEN", "")
+        env_chat = os.getenv("TELEGRAM_CHAT_ID", "")
+        env_data_chat = os.getenv("TELEGRAM_DATA_CHAT_ID", "")
+        if env_token and not settings.get("tg_token"):
+            settings["tg_token"] = env_token
+            settings["tg_active"] = True
+        if env_chat and not settings.get("tg_chat_id"):
+            settings["tg_chat_id"] = env_chat
+        if env_data_chat and not settings.get("tg_data_chat_id"):
+            settings["tg_data_chat_id"] = env_data_chat
+        return jsonify(settings)
 
 @app.route("/api/logs", methods=["GET"])
 def get_logs():
