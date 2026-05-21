@@ -1,5 +1,6 @@
 # 🔐 Sensitive Files (Environment variables)
 .env
+persistent_settings.json
 
 # 💾 Local Dynamic & Temporary Bot Data
 bot_logs.txt

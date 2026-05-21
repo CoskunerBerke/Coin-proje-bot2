@@ -320,6 +320,7 @@ class CoinIntelligenceManager:
             elif regime == "HIGH VOLATILITY":
                 edge_val = 0.9 * dna["breakout_reliability"]
                 
+            edge_val = max(edge_val, 0.50)  # Prevents cold-start RANGE setups from failing the 0.40 threshold
             return {
                 "edge_multiplier": edge_val,
                 "drawdown_risk": "Düşük",
