@@ -352,8 +352,8 @@ class CoinIntelligenceManager:
 
         # Edge Çarpanı Üret
         edge_multiplier = 1.0 + (expectancy * 2.0)
-        # Sınırla [0.3, 1.8]
-        edge_multiplier = np.clip(edge_multiplier, 0.3, 1.8)
+        # Sınırla [0.15, 1.8] (AGRESİF: alt limit 0.3→0.15)
+        edge_multiplier = np.clip(edge_multiplier, 0.15, 1.8)
 
         return {
             "edge_multiplier": float(edge_multiplier),
@@ -382,16 +382,16 @@ class CoinIntelligenceManager:
         reject_reason = ""
         
         # Eğer beklenen değer veya benzerlik çok düşükse trade'i engelle (No-Trade Intelligence)
-        if sim_res["win_rate"] < 0.40 and sim_res["matches_count"] >= 3:
+        if sim_res["win_rate"] < 0.25 and sim_res["matches_count"] >= 5:
             is_approved = False
             reject_reason = f"Hafıza Uyumsuzluğu (Benzer setup geçmiş başarı oranı: %{sim_res['win_rate']*100:.0f})"
-        elif edge_res["edge_multiplier"] < 0.5:
+        elif edge_res["edge_multiplier"] < 0.30:
             is_approved = False
             reject_reason = f"Düşük Tarihsel Edge (Çarpan: {edge_res['edge_multiplier']:.2f})"
-        elif dna["fakeout_prob"] > 0.55 and regime == "RANGE":
+        elif dna["fakeout_prob"] > 0.75 and regime == "RANGE":
             is_approved = False
             reject_reason = "Yüksek Fakeout Riski (Coine özel DNA engeli)"
-        elif final_score < 15.0: # Minimum eşik
+        elif final_score < 8.0: # AGRESİF: Minimum eşik 15→8
             is_approved = False
             reject_reason = f"Düşük Kuantum Zeka Skoru ({final_score:.1f})"
 

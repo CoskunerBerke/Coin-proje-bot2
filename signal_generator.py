@@ -723,9 +723,9 @@ class SignalGenerator:
         if bb_width > 0.05: exit_eff_score += 5
         exit_eff_score = min(100, exit_eff_score)
 
-        # Karar Filtreleri ve Asimetrik Eşik Sistemi (Kârlılık için esnetildi)
-        base_threshold = 48.0
-        adaptive_threshold = base_threshold + (atr_pct * 4.0) + (spread_percent * 4.0)
+        # Karar Filtreleri ve Asimetrik Eşik Sistemi (AGRESİF MOD: Düşük eşik)
+        base_threshold = 35.0
+        adaptive_threshold = base_threshold + (atr_pct * 2.0) + (spread_percent * 2.0)
         
         is_tradable = True
         reject_reason = ""
@@ -762,8 +762,8 @@ class SignalGenerator:
                 elif direction == "SHORT":
                     adaptive_threshold = max(40.0, adaptive_threshold - 5.0)
 
-        # Eşiği makul seviyede sınırlandır (Volatilite ve trend birleştiğinde barajın %85'i aşmasını önler)
-        adaptive_threshold = min(85.0, adaptive_threshold)
+        # Eşiği makul seviyede sınırlandır (AGRESİF: %70 tavanlı)
+        adaptive_threshold = min(70.0, adaptive_threshold)
 
         # BTC Chaotic Volatility Filter
         if btc_regime == "CHAOTIC_VOLATILE":
@@ -806,10 +806,10 @@ class SignalGenerator:
 
         # Quality Multipliers
         quality_multiplier = 1.0
-        if entry_quality_score < 0.55:
-            confidence_pct = confidence_pct * 0.85
-            quality_multiplier = 0.5
-            add_log(f"⚠️ DÜŞÜK GİRİŞ KALİTESİ ({entry_quality_score:.2f} < 0.55): Sinyal güven skoru düşürüldü (%{confidence_pct:.1f}).")
+        if entry_quality_score < 0.35:
+            confidence_pct = confidence_pct * 0.90
+            quality_multiplier = 0.7
+            add_log(f"⚠️ DÜŞÜK GİRİŞ KALİTESİ ({entry_quality_score:.2f} < 0.35): Sinyal güven skoru hafif düşürüldü (%{confidence_pct:.1f}).")
         elif entry_quality_score >= 0.75:
             quality_multiplier = 1.2
 
@@ -871,7 +871,7 @@ class SignalGenerator:
         elif direction == "NEUTRAL":
             is_tradable = False
             reject_reason = "Kararsız Piyasa Eğilimi"
-        elif direction != "NEUTRAL" and htf_alignment_score == 0 and trade_quality_score < 50:
+        elif direction != "NEUTRAL" and htf_alignment_score == 0 and trade_quality_score < 25:
             is_tradable = False
             reject_reason = f"HTF Trend Alignment Uyumsuzluğu (Karşı Trend)"
         elif direction != "NEUTRAL" and trade_quality_score < INSTITUTIONAL_THRESHOLDS["min_quality_score"]:
@@ -894,13 +894,13 @@ class SignalGenerator:
         elif trade_acceptance_probability < meta_threshold:
             is_tradable = False
             reject_reason = f"Model 2 Meta-Filter Reddi (%{trade_acceptance_probability*100:.1f} < Eşik %{meta_threshold*100:.1f})"
-        elif survival_prob < 0.30:
+        elif survival_prob < 0.15:
             is_tradable = False
-            reject_reason = f"Düşük Monte Carlo Sağkalım Oranı (%{survival_prob*100:.1f} < %30.0)"
+            reject_reason = f"Düşük Monte Carlo Sağkalım Oranı (%{survival_prob*100:.1f} < %15.0)"
         elif (reward_r / risk_r) < INSTITUTIONAL_THRESHOLDS["min_rr_ratio"]:
             is_tradable = False
             reject_reason = f"Risk/Ödül Yetersiz ({reward_r/risk_r:.2f} < {INSTITUTIONAL_THRESHOLDS['min_rr_ratio']}) — Minimum 1:{INSTITUTIONAL_THRESHOLDS['min_rr_ratio']:.0f} gerekli"
-        elif spread_percent >= 0.1:
+        elif spread_percent >= 0.15:
             is_tradable = False
             reject_reason = f"Spread Kabul Edilemez Derecede Geniş (%{spread_percent:.3f})"
 
@@ -930,7 +930,7 @@ class SignalGenerator:
                     is_hard_block = True
                 
                 # Monte Carlo sağkalım çok düşükse engelle
-                if survival_prob < 0.30:
+                if survival_prob < 0.15:
                     is_hard_block = True
                 
                 # Risk/Ödül yetersizse engelle (institutional: minimum 1:2)
@@ -945,12 +945,12 @@ class SignalGenerator:
                 if "OI_SPIKE_SQUEEZE" in reject_reason:
                     is_hard_block = True
                 
-                # Volume yetersiz engeli (institutional)
-                if "VOLUME_TOO_LOW" in reject_reason:
-                    is_hard_block = True
+                # Volume yetersiz engeli (AGRESİF: volume bloğu kaldırıldı, config eşiği yeterli)
+                # if "VOLUME_TOO_LOW" in reject_reason:
+                #     is_hard_block = True
                     
-                # Spread çok genişse engelle
-                if spread_percent >= 0.1:
+                # Spread çok genişse engelle (AGRESİF: 0.15'e yükseltildi)
+                if spread_percent >= 0.15:
                     is_hard_block = True
                 
                 # Coin Intelligence reddi (geçmiş benzer setup'lar kaybetmişse) — ÖĞRENİLMİŞ DERS
@@ -965,16 +965,17 @@ class SignalGenerator:
                     # Eğer orijinal eşiğin %70'ini geçiyorsa, öğrenme fırsatı olarak geçir
                     softened = False
                     if "Olasılık Eşik Altında" in reject_reason:
-                        soft_threshold = adaptive_threshold * 0.70
+                        soft_threshold = adaptive_threshold * 0.50
                         if confidence_pct > soft_threshold:
                             softened = True
                     elif "Meta-Filter" in reject_reason:
-                        soft_meta = meta_threshold * 0.70
+                        soft_meta = meta_threshold * 0.50
                         if trade_acceptance_probability > soft_meta:
                             softened = True
-                    elif "HTF Trend" in reject_reason or "Düşük Kalite" in reject_reason:
-                        # Trend uyumsuzluğu ve düşük kalite — geçmişten öğrenildi, engelle
-                        softened = False
+                    elif "HTF Trend" in reject_reason:
+                        softened = True  # AGRESİF: HTF uyumsuzluğu artık engellemiyor
+                    elif "Düşük Kalite" in reject_reason:
+                        softened = True  # AGRESİF: Düşük kalite de geçirilir
                     
                     if softened:
                         add_log(f"🧠 AI_LEARN_AND_APPLY: {coin_key} {direction} — Yumuşak red ({reject_reason}) esnetilerek geçirildi. Öğrenme + uygulama modu.")
