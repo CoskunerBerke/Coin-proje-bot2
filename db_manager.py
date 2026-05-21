@@ -228,7 +228,9 @@ class HybridDatabaseManager:
                     else:
                         add_log("⚠️ Telegram Cloud Sync: Yedekleme dosyası indirilemedi.")
                 else:
-                    add_log("ℹ️ Telegram Cloud Sync: Pinned yedek bulunamadı. Bulutta yeni profil oluşturulacak.")
+                    if not getattr(self, '_pinned_not_found_logged', False):
+                        add_log("ℹ️ Telegram Cloud Sync: Pinned yedek bulunamadı. Bulutta yeni profil oluşturulacak.")
+                        self._pinned_not_found_logged = True
             except Exception as e:
                 add_log(f"⚠️ Telegram Cloud Sync Hatası: {str(e)}")
 
