@@ -1,0 +1,1893 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kripto Sniper Bot — Yapay Zeka Yönetim Paneli</title>
+    
+    <!-- 🌟 Tailwind CSS & Google Fonts -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <!-- 🎨 Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- 📈 TradingView Widget Script -->
+    <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            background-color: #FFFFFF;
+            color: #1E293B;
+            font-family: 'Inter', sans-serif;
+        }
+        
+        /* Sidebar styling */
+        .sidebar {
+            background-color: #F8FAFC;
+            border-right: 1px solid #E2E8F0;
+        }
+
+        /* Original dashboard components styling */
+        .bot-panel {
+            background-color: #FFFBEB;
+            border: 2px solid #F59E0B;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .signal-container {
+            background: #FFFFFF;
+            border-radius: 20px;
+            padding: 30px;
+            text-align: center;
+            border: 2px solid #F1F5F9;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        }
+        
+        .action-card {
+            background: #F8FAFC;
+            border-radius: 12px;
+            padding: 15px;
+            text-align: center;
+            border: 1px solid #E2E8F0;
+        }
+        
+        .level-box {
+            background: #F1F5F9;
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 10px;
+            border: 1px solid #E2E8F0;
+        }
+        
+        .ai-box {
+            background: #F8FAFC;
+            border-radius: 12px;
+            padding: 20px;
+            color: #334155;
+            border-left: 5px solid #3B82F6;
+            font-size: 14px;
+            margin-top: 15px;
+        }
+
+        /* Pulsing AI indicators */
+        .ai-learning-active {
+            height: 12px;
+            width: 12px;
+            background-color: #10B981;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+            box-shadow: 0 0 8px #10B981;
+            animation: pulse 1.5s infinite;
+            vertical-align: middle;
+        }
+        
+        .ai-learning-inactive {
+            height: 12px;
+            width: 12px;
+            background-color: #94A3B8;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+        }
+
+        /* Custom scrollbars */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(226, 232, 240, 0.3);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(148, 163, 184, 0.5);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(148, 163, 184, 0.8);
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+
+    <!-- MAIN PAGE CONTAINER -->
+    <div class="flex flex-col lg:flex-row min-h-screen">
+        
+        <!-- ================= SIDEBAR ================= -->
+        <aside class="sidebar w-full lg:w-[320px] p-6 flex flex-col shrink-0">
+            <div class="flex items-center gap-3 mb-6">
+                <div class="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white">
+                    <i class="fa-solid fa-robot text-lg"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold text-slate-800 tracking-tight leading-none">QUANTUM BOT</h1>
+                    <span class="text-[10px] font-mono text-slate-400">AI Kripto Sniper Motoru</span>
+                </div>
+            </div>
+
+            <!-- Connection Status indicator -->
+            <div class="flex items-center gap-2 px-3 py-2 rounded-lg bg-white border border-slate-200 mb-6 shadow-sm">
+                <span id="status-pulse" class="w-2.5 h-2.5 rounded-full bg-yellow-500 animate-ping"></span>
+                <span id="status-text" class="text-xs font-bold font-mono text-yellow-500 uppercase">BAĞLANILIYOR</span>
+            </div>
+
+            <!-- API Address Configuration (Hidden for pristine clean UI, automatically connects to Render) -->
+            <div class="mb-6 space-y-2" style="display: none;">
+                <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Backend API Adresi</label>
+                <div class="flex gap-2">
+                    <input type="text" id="api-url" placeholder="https://backend-url.com" 
+                           class="flex-grow bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-mono text-slate-600 focus:outline-none focus:border-indigo-500">
+                    <button onclick="saveApiUrl()" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-2.5 py-1.5 rounded-lg font-medium transition">
+                        Kaydet
+                    </button>
+                </div>
+            </div>
+
+            <div class="border-t border-slate-200 my-4"></div>
+
+            <!-- ⚙️ BOT KONTROL -->
+            <div class="space-y-4">
+                <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">🤖 BOT KONTROL</h3>
+                
+                <!-- Toggle: Bot Active -->
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-semibold text-slate-700">OTOMATİK BOTU AKTİF ET</span>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="bot-active-toggle" onchange="submitSettings()" class="sr-only peer">
+                        <div class="w-9 h-5 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
+                    </label>
+                </div>
+
+                <!-- Toggle: Simulation Mode -->
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-semibold text-slate-700">SİMÜLASYON MODU (TEST)</span>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="sim-mode-toggle" onchange="submitSettings()" class="sr-only peer">
+                        <div class="w-9 h-5 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+                    </label>
+                </div>
+
+                <!-- Slider: Leverage -->
+                <div class="space-y-1.5">
+                    <div class="flex justify-between text-xs font-semibold text-slate-700">
+                        <span>💰 İşlem Kaldıracı (Leverage):</span>
+                        <span id="leverage-val" class="font-mono font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">1x</span>
+                    </div>
+                    <input type="range" id="leverage-slider" min="1" max="20" value="1" oninput="updateLeverageVal(this.value)" onchange="submitSettings()" 
+                           class="w-full h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600">
+                </div>
+            </div>
+
+            <div class="border-t border-slate-200 my-4"></div>
+
+            <!-- 📱 TELEGRAM BİLDİRİM -->
+            <div class="space-y-4">
+                <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">📱 Telegram Bildirim</h3>
+                
+                <!-- Toggle: Telegram Active -->
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-semibold text-slate-700">Telegram Bildirimleri</span>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="tg-active-toggle" onchange="submitSettings()" class="sr-only peer">
+                        <div class="w-9 h-5 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+                    </label>
+                </div>
+
+                <!-- Input: Bot Token -->
+                <div class="space-y-1 relative">
+                    <label class="block text-[10px] font-bold text-slate-500 uppercase">Bot Token:</label>
+                    <div class="relative">
+                        <input type="password" id="tg-token-input" onchange="submitSettings()" placeholder="Token giriniz"
+                               class="w-full bg-white border border-slate-200 rounded-lg pl-2.5 pr-8 py-1 text-xs font-mono text-slate-600 focus:outline-none focus:border-indigo-500">
+                        <button onclick="togglePasswordVisibility('tg-token-input', this)" class="absolute right-2.5 top-1.5 text-slate-400 hover:text-slate-600">
+                            <i class="fa-solid fa-eye text-xs"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Input: Chat ID -->
+                <div class="space-y-1">
+                    <label class="block text-[10px] font-bold text-slate-500 uppercase">Chat ID (İşlemler):</label>
+                    <input type="text" id="tg-chat-id-input" onchange="submitSettings()" placeholder="Alış-satış bildirim kanalı ID"
+                           class="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-mono text-slate-600 focus:outline-none focus:border-indigo-500">
+                </div>
+
+                <!-- Input: Data/Backup Chat ID -->
+                <div class="space-y-1">
+                    <label class="block text-[10px] font-bold text-slate-500 uppercase">Yedek Veri Chat ID (JSON):</label>
+                    <input type="text" id="tg-data-chat-id-input" onchange="submitSettings()" placeholder="Veritabanı yedek kanalı ID"
+                           class="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-mono text-slate-600 focus:outline-none focus:border-indigo-500">
+                </div>
+
+                <!-- Button: Send Test Message -->
+                <button onclick="sendTelegramTest()" class="w-full bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs py-1.5 rounded-lg font-medium transition shadow-sm flex items-center justify-center gap-1.5">
+                    🔔 TEST MESAJI GÖNDER
+                </button>
+            </div>
+
+            <div class="border-t border-slate-200 my-4"></div>
+
+            <!-- Dropdowns & Settings -->
+            <div class="space-y-4">
+                <!-- Grid: Clickable Analyzed Coin -->
+                <div class="space-y-2">
+                    <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider">🪙 Coin Seçimi (Tıkla Değiştir):</label>
+                    <div id="coin-buttons-list" class="grid grid-cols-3 gap-1.5 max-h-[220px] overflow-y-auto pr-0.5 select-none">
+                        <!-- Clickable coin buttons dynamically rendered here -->
+                    </div>
+                    <select id="selected-coin-select" onchange="changeSelectedCoin(this.value)" class="hidden">
+                        <option value="BTC">BTC</option>
+                    </select>
+                </div>
+
+                <!-- Dropdown: Timeframe -->
+                <div class="space-y-1">
+                    <label class="block text-xs font-semibold text-slate-700">Zaman Dilimi:</label>
+                    <select id="selected-timeframe-select" onchange="changeSelectedTimeframe(this.value)" 
+                            class="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-700 focus:outline-none focus:border-indigo-500">
+                        <option value="1m">1m</option>
+                        <option value="5m">5m</option>
+                        <option value="15m" selected>15m</option>
+                        <option value="1h">1h</option>
+                        <option value="1d">1d</option>
+                    </select>
+                </div>
+ 
+                <!-- Özel Coin Arama Kartı -->
+                <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5 shadow-sm">
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                        🔍 Özel Coin Analiz Et (ör: FLOKI)
+                    </label>
+                    <div class="flex gap-1.5">
+                        <input type="text" id="custom-coin-input" placeholder="Sembol girin" 
+                               class="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none focus:border-indigo-500 uppercase">
+                        <button type="button" onclick="analyzeCustomCoin()" 
+                                class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition shadow-sm">
+                            Ara
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Refresh settings -->
+                <div class="flex items-center justify-between pt-2">
+                    <span class="text-xs font-semibold text-slate-700">Oto Güncelle</span>
+                    <input type="checkbox" id="auto-refresh-check" checked class="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500">
+                </div>
+
+                <div class="space-y-1.5">
+                    <div class="flex justify-between text-xs font-semibold text-slate-700">
+                        <span>Saniye:</span>
+                        <span id="refresh-interval-val" class="font-mono font-bold">5 sn</span>
+                    </div>
+                    <input type="range" id="refresh-interval-slider" min="2" max="300" value="5" oninput="updateRefreshIntervalVal(this.value)" 
+                           class="w-full h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600">
+                </div>
+            </div>
+        </aside>
+
+        <!-- ================= MAIN MAIN PANEL ================= -->
+        <main class="flex-grow p-6 lg:p-8 space-y-6 overflow-y-auto">
+            
+            <!-- DASHBOARD TITLE & SUBTITLE -->
+            <div class="text-center sm:text-left space-y-1">
+                <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-800 tracking-tight flex items-center justify-center sm:justify-start gap-2">
+                    <span class="inline-block w-3.5 h-3.5 rounded-full bg-indigo-600 flex-shrink-0 shadow-md shadow-indigo-300"></span>
+                    🔵 Kripto Coin Analiz Dashboard
+                </h1>
+                <p class="text-xs sm:text-sm font-semibold text-slate-400">
+                    Teknik Analiz • Sentiment • AI Yorum • Long/Short Sinyal
+                </p>
+            </div>
+
+            <!-- FOUR STATS METRIC CARDS LIKE STREAMLIT -->
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <!-- Card 1: FİYAT -->
+                <div class="p-4 bg-slate-900 text-white rounded-2xl border border-slate-800 shadow-sm space-y-1.5 relative overflow-hidden">
+                    <span class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                        🪙 <span id="header-price-title">BTC FİYAT</span>
+                    </span>
+                    <span id="header-price-val" class="block text-xl sm:text-2xl font-extrabold tracking-tight">$0.00</span>
+                    <span id="header-price-change" class="block text-[10px] font-bold text-slate-400">0.00% (24s)</span>
+                </div>
+                <!-- Card 2: HACİM -->
+                <div class="p-4 bg-slate-900 text-white rounded-2xl border border-slate-800 shadow-sm space-y-1.5 relative overflow-hidden">
+                    <span class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                        📊 24S HACİM
+                    </span>
+                    <span id="header-volume-val" class="block text-xl sm:text-2xl font-extrabold tracking-tight">$0.00</span>
+                    <span class="block text-[10px] font-bold text-slate-400">USDT</span>
+                </div>
+                <!-- Card 3: YÜKSEK / DÜŞÜK -->
+                <div class="p-4 bg-slate-900 text-white rounded-2xl border border-slate-800 shadow-sm space-y-1.5 relative overflow-hidden">
+                    <span class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                        📈 24S YÜKSEK / DÜŞÜK
+                    </span>
+                    <span id="header-highlow-val" class="block text-sm sm:text-base font-extrabold tracking-tight">$0.00 / $0.00</span>
+                    <span class="block text-[10px] font-bold text-slate-400" id="header-highlow-sub">Genişlik: 0.00%</span>
+                </div>
+                <!-- Card 4: MARKET CAP -->
+                <div class="p-4 bg-slate-900 text-white rounded-2xl border border-slate-800 shadow-sm space-y-1.5 relative overflow-hidden">
+                    <span class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                        🏆 MARKET CAP <span id="header-rank-val" class="text-[9px] bg-slate-800 text-slate-300 px-1 py-0.5 rounded font-bold ml-1">SIRA #0</span>
+                    </span>
+                    <span id="header-marketcap-val" class="block text-xl sm:text-2xl font-extrabold tracking-tight">$0.00</span>
+                    <span class="block text-[10px] font-bold text-slate-400">CoinGecko Canlı</span>
+                </div>
+            </div>
+
+            <!-- ================= Yapay Zeka Canlı Al-Sat Sinyali ================= -->
+            <section class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-6">
+                <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                    <h4 class="text-base font-extrabold text-slate-800 flex items-center gap-2" id="analysis-coin-title">
+                        ⚡ Canlı Yapay Zeka Al-Sat Sinyali (BTC)
+                    </h4>
+                    <button type="button" onclick="triggerManualRefresh(this)" 
+                            class="px-3 py-1.5 hover:bg-slate-150 text-slate-500 hover:text-indigo-600 rounded-xl transition-all duration-200 flex items-center gap-1.5 text-xs font-bold shadow-sm border border-slate-200/60 bg-slate-50" 
+                            title="Analizi Anlık Yenile">
+                        <svg id="refresh-spin-icon" class="w-3.5 h-3.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 15H16.24"></path>
+                        </svg>
+                        <span>Şimdi Yenile</span>
+                    </button>
+                </div>
+                
+                <!-- Dynamic Sinyal / Yön Kutusu -->
+                <div id="signal-banner" class="rounded-2xl p-6 text-center text-white relative overflow-hidden transition-all duration-300 shadow-md bg-gradient-to-br from-amber-500 to-yellow-600 border border-amber-400/20">
+                    <div class="text-[10px] uppercase font-bold tracking-wider opacity-85 mb-1" id="signal-regime">PİYASA REJİMİ: ANALİZ EDİLİYOR</div>
+                    <div class="text-xs uppercase font-extrabold opacity-75 mb-1">SİNYAL YÖNÜ</div>
+                    <div class="text-3xl sm:text-4xl font-black tracking-tight" id="signal-direction-label">↔️ Yatay (Nötr)</div>
+                    <div class="mt-3 flex justify-center items-center gap-3 text-xs font-semibold opacity-90 border-t border-white/10 pt-3">
+                        <span>Güven: <strong id="signal-confidence">%50</strong></span>
+                        <span>•</span>
+                        <span>Beklenti: <strong id="signal-expectancy">Nötr</strong></span>
+                        <span>•</span>
+                        <span>Risk: <strong id="signal-risk">🟡 Orta</strong></span>
+                    </div>
+                </div>
+
+                <!-- Aksiyon Planı & Kritik Seviyeler Container -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <!-- Left Column (lg:col-span-2): Aksiyon Planı Levels -->
+                    <div class="lg:col-span-2 space-y-4">
+                        <h5 class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                            🎯 Aksiyon Planı
+                        </h5>
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                            <!-- GİRİŞ -->
+                            <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-center shadow-sm space-y-1 relative overflow-hidden">
+                                <span class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Giriş Bölgesi</span>
+                                <span id="level-entry" class="block text-sm font-extrabold font-mono text-slate-800">$0.00</span>
+                            </div>
+                            <!-- STOP -->
+                            <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-center shadow-sm space-y-1 relative overflow-hidden">
+                                <span class="block text-[10px] font-bold text-rose-500 uppercase tracking-wider">Stop-Loss</span>
+                                <span id="level-stop" class="block text-sm font-extrabold font-mono text-rose-500">$0.00</span>
+                            </div>
+                            <!-- TP1 -->
+                            <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-center shadow-sm space-y-1 relative overflow-hidden">
+                                <span class="block text-[10px] font-bold text-emerald-600 uppercase tracking-wider">TP-1 (1:1.5)</span>
+                                <span id="level-tp1" class="block text-sm font-extrabold font-mono text-emerald-600">$0.00</span>
+                            </div>
+                            <!-- TP2 -->
+                            <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-center shadow-sm space-y-1 relative overflow-hidden">
+                                <span class="block text-[10px] font-bold text-emerald-600 uppercase tracking-wider">TP-2 (1:2.5)</span>
+                                <span id="level-tp2" class="block text-sm font-extrabold font-mono text-emerald-600">$0.00</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Accept / Reject badge at the bottom of levels -->
+                        <div id="signal-status-badge" class="p-2.5 rounded-xl text-center text-xs font-extrabold uppercase bg-slate-50 border border-slate-150 text-slate-500">
+                            Sinyal Verisi Bekleniyor...
+                        </div>
+                        
+                        <!-- Detailed Bayes & MC Metrics underneath levels -->
+                        <div class="grid grid-cols-2 sm:grid-cols-5 gap-2 text-center">
+                            <div class="p-2 bg-slate-50 border border-slate-200 rounded-xl space-y-0.5">
+                                <span class="block text-[8px] font-bold text-slate-400 uppercase">MC Sağkalım</span>
+                                <span id="signal-survival" class="block text-xs font-extrabold text-emerald-600">%85.0</span>
+                            </div>
+                            <div class="p-2 bg-slate-50 border border-slate-200 rounded-xl space-y-0.5">
+                                <span class="block text-[8px] font-bold text-slate-400 uppercase">Belirsizlik</span>
+                                <span id="signal-uncertainty" class="block text-xs font-extrabold text-indigo-500">ORTA</span>
+                            </div>
+                            <div class="p-2 bg-slate-50 border border-slate-200 rounded-xl space-y-0.5">
+                                <span class="block text-[8px] font-bold text-slate-400 uppercase">Benzerlik</span>
+                                <span id="signal-similarity" class="block text-xs font-extrabold text-indigo-500">%100.0</span>
+                            </div>
+                            <div class="p-2 bg-slate-50 border border-slate-200 rounded-xl space-y-0.5">
+                                <span class="block text-[8px] font-bold text-slate-400 uppercase">Fakeout Olasılığı</span>
+                                <span id="signal-fakeout-prob" class="block text-xs font-extrabold text-rose-500">%20</span>
+                            </div>
+                            <div class="p-2 bg-slate-50 border border-slate-200 rounded-xl space-y-0.5">
+                                <span class="block text-[8px] font-bold text-slate-400 uppercase">Edge Çarpanı</span>
+                                <span id="signal-edge" class="block text-xs font-extrabold text-emerald-600">1.00x</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Right Column (lg:col-span-1): Kritik Seviyeler Supports / Resistances -->
+                    <div class="lg:col-span-1 space-y-4">
+                        <h5 class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                            📐 Kritik Seviyeler
+                        </h5>
+                        <div class="grid grid-cols-1 gap-3">
+                            <!-- Supports -->
+                            <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-xl shadow-inner">
+                                <div class="font-extrabold text-slate-700 text-[10px] uppercase tracking-wider border-b border-slate-200 pb-1.5 mb-1.5 flex items-center gap-1.5">
+                                    🔷 Destekler (Alış Bölgesi)
+                                </div>
+                                <ul id="supports-list" class="text-xs space-y-0.5 font-mono font-bold text-slate-650">
+                                    <li>• Yükleniyor...</li>
+                                </ul>
+                            </div>
+                            <!-- Resistances -->
+                            <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-xl shadow-inner">
+                                <div class="font-extrabold text-slate-700 text-[10px] uppercase tracking-wider border-b border-slate-200 pb-1.5 mb-1.5 flex items-center gap-1.5">
+                                    🚧 Dirençler (Satış Bölgesi)
+                                </div>
+                                <ul id="resistances-list" class="text-xs space-y-0.5 font-mono font-bold text-slate-650">
+                                    <li>• Yükleniyor...</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 🤖 AI Analiz Yorumu Container exactly matching the dark box -->
+                <div class="p-5 rounded-2xl border text-white relative overflow-hidden shadow-inner flex flex-col gap-2 transition-all duration-300"
+                     style="background-color: #1e293b; border-color: #334155;">
+                    <div class="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-indigo-400">
+                        <span>🤖 AI Analiz Yorumu</span>
+                        <span class="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-ping"></span>
+                    </div>
+                    <p id="ai-comment-bubble" class="text-xs sm:text-sm font-medium leading-relaxed text-slate-200">
+                        Seçili coin için analiz verisi toplanıyor. Arka planda analiz tamamlandığında bu alan güncellenecektir.
+                    </p>
+                </div>
+            </section>
+
+            <!-- 1. BOT DURUMU & BAKİYE PANELI -->
+            <div id="bot-panel-card" class="bot-panel flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                    <div id="bot-panel-status" class="text-sm font-bold text-amber-800">
+                        🤖 BOT DURUMU: KAPALI | TEST MODU
+                    </div>
+                    <div id="bot-panel-balance" class="text-2xl font-extrabold text-slate-800 mt-1">
+                        Bakiye: $1,000.00
+                    </div>
+                </div>
+                <div class="flex flex-wrap items-center gap-3">
+                    <div id="sync-status-badge" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-700 text-[10px] font-extrabold shadow-sm transition-all duration-300">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <span id="sync-status-text">BULUT SENKRONİZE</span>
+                    </div>
+                    <div id="bot-panel-ai" class="flex items-center bg-slate-50 border border-slate-150 px-3 py-1.5 rounded-xl shadow-sm">
+                        <span class="ai-learning-inactive mr-1.5" id="ai-pulse-dot"></span>
+                        <span class="text-[10px] font-extrabold text-slate-500 uppercase tracking-wide" id="ai-pulse-text">AI Beklemede</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. AKTİF POZİSYONLAR TABLE -->
+            <section class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+                <h4 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                    📊 İşlem Takibi & Kâr-Zarar (PNL)
+                </h4>
+                
+                <div class="overflow-x-auto border border-slate-100 rounded-lg max-h-[300px]">
+                    <table class="w-full text-left border-collapse font-sans text-xs sm:text-sm">
+                        <thead>
+                            <tr class="border-b-2 border-slate-150 text-slate-500 font-semibold sticky top-0 bg-white z-10">
+                                <th class="p-3">Durum</th>
+                                <th class="p-3">Coin</th>
+                                <th class="p-3">Yön</th>
+                                <th class="p-3">Miktar ($ / %)</th>
+                                <th class="p-3">Giriş</th>
+                                <th class="p-3">Güncel</th>
+                                <th class="p-3">PNL (%)</th>
+                                <th class="p-3">Kâr/Zarar</th>
+                                <th class="p-3 text-center">Aksiyon</th>
+                            </tr>
+                        </thead>
+                        <tbody id="trades-table-body" class="divide-y divide-slate-100">
+                            <!-- Dynamic Table Rows -->
+                            <tr>
+                                <td colspan="8" class="p-4 text-center text-slate-400 text-xs">Henüz bot tarafından yapılmış bir işlem bulunmuyor.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- 3. DNA DAVRANIŞ PROFİLİ -->
+            <section class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+                <h4 class="text-base font-bold text-slate-800" id="dna-section-title">
+                    🧬 BTC DNA Davranış Profili
+                </h4>
+                
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-3 text-center">
+                    <!-- Trend gücü -->
+                    <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                        <span class="block text-[10px] font-bold text-slate-400 uppercase">TREND GÜCÜ</span>
+                        <span id="dna-trend-val" class="block text-lg font-extrabold text-blue-600">%50</span>
+                    </div>
+                    <!-- Fakeout riski -->
+                    <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                        <span class="block text-[10px] font-bold text-slate-400 uppercase">FAKEOUT RİSKİ</span>
+                        <span id="dna-fakeout-val" class="block text-lg font-extrabold text-rose-500">%20</span>
+                    </div>
+                    <!-- Ortalamaya dönüş -->
+                    <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                        <span class="block text-[10px] font-bold text-slate-400 uppercase">ORTALAMAYA DÖNÜŞ</span>
+                        <span id="dna-reversion-val" class="block text-lg font-extrabold text-emerald-500">%50</span>
+                    </div>
+                    <!-- Kırılım güveni -->
+                    <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                        <span class="block text-[10px] font-bold text-slate-400 uppercase">KIRILIM GÜVENİ</span>
+                        <span id="dna-breakout-val" class="block text-lg font-extrabold text-indigo-600">%50</span>
+                    </div>
+                    <!-- Volatilite skoru -->
+                    <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                        <span class="block text-[10px] font-bold text-slate-400 uppercase">VOLATİLİTE SKORU</span>
+                        <span id="dna-volatility-val" class="block text-lg font-extrabold text-amber-500">%50</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 4. AI COİNE ÖZEL KARAR AĞIRLIKLARI (CANLI) -->
+            <section class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+                <h4 class="text-base font-bold text-slate-800">
+                    ⚖️ AI Coine Özel Karar Ağırlıkları (Canlı)
+                </h4>
+                
+                <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5 text-center">
+                    <div class="p-2.5 bg-slate-50 border border-slate-200 rounded-lg space-y-1">
+                        <span class="block text-[10px] font-semibold text-slate-500 uppercase">RSI</span>
+                        <span id="weight-rsi" class="block text-base font-extrabold text-slate-700">%0.0</span>
+                    </div>
+                    <div class="p-2.5 bg-slate-50 border border-slate-200 rounded-lg space-y-1">
+                        <span class="block text-[10px] font-semibold text-slate-500 uppercase">MACD</span>
+                        <span id="weight-macd" class="block text-base font-extrabold text-slate-700">%0.0</span>
+                    </div>
+                    <div class="p-2.5 bg-slate-50 border border-slate-200 rounded-lg space-y-1">
+                        <span class="block text-[10px] font-semibold text-slate-500 uppercase">EMA_CROSS</span>
+                        <span id="weight-ema" class="block text-base font-extrabold text-slate-700">%0.0</span>
+                    </div>
+                    <div class="p-2.5 bg-slate-50 border border-slate-200 rounded-lg space-y-1">
+                        <span class="block text-[10px] font-semibold text-slate-500 uppercase">BOLLINGER</span>
+                        <span id="weight-bollinger" class="block text-base font-extrabold text-slate-700">%0.0</span>
+                    </div>
+                    <div class="p-2.5 bg-slate-50 border border-slate-200 rounded-lg space-y-1">
+                        <span class="block text-[10px] font-semibold text-slate-500 uppercase">TREND_ADX</span>
+                        <span id="weight-adx" class="block text-base font-extrabold text-slate-700">%0.0</span>
+                    </div>
+                    <div class="p-2.5 bg-slate-50 border border-slate-200 rounded-lg space-y-1">
+                        <span class="block text-[10px] font-semibold text-slate-500 uppercase">VOLUME</span>
+                        <span id="weight-volume" class="block text-base font-extrabold text-slate-700">%0.0</span>
+                    </div>
+                    <div class="p-2.5 bg-slate-50 border border-slate-200 rounded-lg space-y-1">
+                        <span class="block text-[10px] font-semibold text-slate-500 uppercase">SENTIMENT</span>
+                        <span id="weight-sentiment" class="block text-base font-extrabold text-slate-700">%0.0</span>
+                    </div>
+                    <div class="p-2.5 bg-slate-50 border border-slate-200 rounded-lg space-y-1">
+                        <span class="block text-[10px] font-semibold text-slate-500 uppercase">CANDLE</span>
+                        <span id="weight-candle" class="block text-base font-extrabold text-slate-700">%0.0</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 5. AI ÖĞRENME BAŞARISI & PERFORMANS ANALİZİ -->
+            <section class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+                <h4 class="text-base font-bold text-slate-800">
+                    🧠 AI Öğrenme Başarısı & Performans Analizi
+                </h4>
+                
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 text-center">
+                    <!-- AI Kazanma Oranı -->
+                    <div class="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                        <span class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">AI Öğrenme Başarı Yüzdesi</span>
+                        <span id="perf-win-rate" class="block text-xl sm:text-2xl font-extrabold text-indigo-650">%0.0</span>
+                        <span id="perf-win-rate-sub" class="block text-[10px] text-slate-400">Yükleniyor...</span>
+                    </div>
+                    <!-- Kâr / Zarar Oranı -->
+                    <div class="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                        <span class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">İşlem Kâr / Zarar Oranı</span>
+                        <span id="perf-wl-ratio" class="block text-xl sm:text-2xl font-extrabold text-slate-800">0.00x</span>
+                        <span id="perf-wl-ratio-sub" class="block text-[10px] text-slate-400">Yükleniyor...</span>
+                    </div>
+                    <!-- AI Önlenen Zarar -->
+                    <div class="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                        <span class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">AI Önlenen Zarar (ALI)</span>
+                        <span id="perf-avoided-loss" class="block text-xl sm:text-2xl font-extrabold text-emerald-600">+$0.00</span>
+                        <span id="perf-avoided-sub" class="block text-[10px] text-slate-400">Yükleniyor...</span>
+                    </div>
+                    <!-- Net Kümülatif PNL -->
+                    <div class="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                        <span class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Kümülatif Net Getiri %</span>
+                        <span id="perf-cum-pnl" class="block text-xl sm:text-2xl font-extrabold text-slate-800">0.00%</span>
+                        <span id="perf-cum-pnl-sub" class="block text-[10px] text-slate-400">Yükleniyor...</span>
+                    </div>
+                </div>
+
+                <!-- Yönsel İşlem Başarısı (Long vs Short) -->
+                <div class="border-t border-slate-100 pt-4">
+                    <h5 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">📊 Yönsel İşlem Başarısı (Long vs Short)</h5>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- LONG İŞLEMLER KARTI -->
+                        <div class="p-4 bg-emerald-50/40 border border-emerald-100/70 rounded-xl flex justify-between items-center shadow-sm">
+                            <div>
+                                <span class="block text-[10px] font-bold text-emerald-700 uppercase tracking-wide">LONG İŞLEMLER</span>
+                                <span id="perf-long-count" class="text-xs text-slate-500 font-semibold mt-1 block">0 İşlem (0 Kazanç)</span>
+                            </div>
+                            <div class="text-right">
+                                <span id="perf-long-pnl-pct" class="block text-lg font-extrabold text-emerald-600 font-mono">+0.00%</span>
+                                <span id="perf-long-pnl-usdt" class="text-[10px] font-bold text-emerald-750 font-mono mt-0.5 block">+$0.00</span>
+                            </div>
+                        </div>
+                        <!-- SHORT İŞLEMLER KARTI -->
+                        <div class="p-4 bg-rose-50/40 border border-rose-100/70 rounded-xl flex justify-between items-center shadow-sm">
+                            <div>
+                                <span class="block text-[10px] font-bold text-rose-700 uppercase tracking-wide">SHORT İŞLEMLER</span>
+                                <span id="perf-short-count" class="text-xs text-slate-500 font-semibold mt-1 block">0 İşlem (0 Kazanç)</span>
+                            </div>
+                            <div class="text-right">
+                                <span id="perf-short-pnl-pct" class="block text-lg font-extrabold text-rose-600 font-mono">+0.00%</span>
+                                <span id="perf-short-pnl-usdt" class="text-[10px] font-bold text-rose-750 font-mono mt-0.5 block">+$0.00</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 6. SPOT AI PORTFÖYÜ (UZUN VADELİ YATIRIM) -->
+            <section class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+                <div class="flex justify-between items-center mb-2">
+                    <h4 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                        📈 Spot AI Yatırım Portföyü (Günlük Akümülasyon Tarayıcı)
+                    </h4>
+                    <span class="text-[10px] font-mono bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded font-bold">1d Grafik</span>
+                </div>
+                
+                <div id="spot-portfolio-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div class="col-span-full text-slate-400 text-center py-6 text-xs">Spot AI analiz motorunun günlük tarama sonuçları bekleniyor...</div>
+                </div>
+            </section>
+
+            <!-- 7. 🧠 AI TRADE HAFIZA & ÖĞRENME MERKEZİ -->
+            <section class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+                <div class="flex justify-between items-center mb-2">
+                    <h4 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                        🧠 AI Trade Hafıza & Öğrenme Merkezi
+                    </h4>
+                    <button onclick="sendMemoryReport(this)" class="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-[10px] font-bold rounded-lg border border-indigo-200 transition flex items-center gap-1.5">
+                        📊 Telegram Raporu Gönder
+                    </button>
+                </div>
+                
+                <!-- Genel İstatistik Kartları -->
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 text-center" id="memory-stats-cards">
+                    <div class="p-3.5 bg-emerald-50 border border-emerald-100 rounded-xl space-y-0.5">
+                        <span class="block text-[9px] font-bold text-emerald-700 uppercase">TOPLAM İŞLEM</span>
+                        <span id="mem-total-trades" class="block text-xl font-extrabold text-emerald-600">0</span>
+                        <span id="mem-total-wins" class="block text-[9px] text-emerald-500">0 Kazanç</span>
+                    </div>
+                    <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-0.5">
+                        <span class="block text-[9px] font-bold text-slate-500 uppercase">KAZANMA ORANI</span>
+                        <span id="mem-win-rate" class="block text-xl font-extrabold text-slate-700">%0.0</span>
+                    </div>
+                    <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-0.5">
+                        <span class="block text-[9px] font-bold text-slate-500 uppercase">TOPLAM PNL</span>
+                        <span id="mem-total-pnl" class="block text-xl font-extrabold text-slate-700">$0.00</span>
+                    </div>
+                    <div class="p-3.5 bg-blue-50 border border-blue-100 rounded-xl space-y-0.5">
+                        <span class="block text-[9px] font-bold text-blue-700 uppercase">ÖĞRENİLEN COİN</span>
+                        <span id="mem-coins-learned" class="block text-xl font-extrabold text-blue-600">0</span>
+                    </div>
+                </div>
+
+                <!-- Coin Bazlı Detay Tablosu -->
+                <div class="overflow-x-auto border border-slate-100 rounded-lg max-h-[220px]">
+                    <table class="w-full text-left border-collapse font-sans text-xs">
+                        <thead>
+                            <tr class="border-b-2 border-slate-150 text-slate-500 font-semibold sticky top-0 bg-white z-10">
+                                <th class="p-2.5">Coin</th>
+                                <th class="p-2.5">İşlem</th>
+                                <th class="p-2.5">Kazanç</th>
+                                <th class="p-2.5">Kayıp</th>
+                                <th class="p-2.5">WR</th>
+                                <th class="p-2.5">PNL</th>
+                            </tr>
+                        </thead>
+                        <tbody id="memory-table-body" class="divide-y divide-slate-100">
+                            <tr>
+                                <td colspan="6" class="p-4 text-center text-slate-400 text-xs">Hafıza verisi yükleniyor...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Hata Desenleri -->
+                <div>
+                    <h5 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">📝 Tespit Edilen Hata Desenleri</h5>
+                    <div id="memory-error-patterns" class="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                        <div class="text-center text-[10px] text-slate-400 col-span-full py-2">Henüz yeterli veri yok</div>
+                    </div>
+                </div>
+                
+                <!-- Son Öğrenme Notları -->
+                <div>
+                    <h5 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">💡 Son Öğrenme Notları</h5>
+                    <div id="memory-lessons" class="space-y-1.5 max-h-[150px] overflow-y-auto">
+                        <div class="text-center text-[10px] text-slate-400 py-2">Öğrenme notları henüz oluşmadı</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 8. CANLI TERMİNAL VE KAPALI GEÇMİŞ (SIDE-BY-SIDE ON LARGE BINDINGS) -->
+            <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+                
+                <!-- 🖥️ LIVE BOT TERMINAL LOGS -->
+                <section class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm xl:col-span-2 flex flex-col h-[350px]">
+                    <div class="flex justify-between items-center mb-4 border-b border-slate-100 pb-2">
+                        <h4 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                            🖥️ Canlı Bot Günlüğü (Console)
+                        </h4>
+                        <span class="text-[10px] font-mono bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded font-bold">Canlı Akış</span>
+                    </div>
+                    
+                    <div id="terminal-console" class="flex-grow bg-black rounded-xl p-4 font-mono text-xs overflow-y-auto text-emerald-400 space-y-1.5 shadow-inner">
+                        <div class="text-slate-500">Loglar yükleniyor...</div>
+                    </div>
+                </section>
+
+                <!-- 📜 KAPALI POZİSYON GEÇMİŞİ -->
+                <section class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm xl:col-span-1 flex flex-col h-[350px]">
+                    <div class="flex justify-between items-center mb-4 border-b border-slate-100 pb-2">
+                        <h4 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                            📜 Kapanış Geçmişi
+                        </h4>
+                        <span class="text-[10px] font-mono bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-bold">Son İşlemler</span>
+                    </div>
+                    
+                    <div id="history-list" class="flex-grow overflow-y-auto space-y-2.5 pr-1 font-sans text-xs">
+                        <div class="text-slate-400 text-center py-10">Geçmiş işlem kaydı bulunmuyor.</div>
+                    </div>
+                </section>
+                
+            </div>
+
+            <!-- FOOTER -->
+            <footer class="text-center text-xs text-slate-400/80 pt-6 border-t border-slate-100 mt-8 pb-4">
+                <p>© 2026 Kripto Sniper Bot Platformu. Tüm Hakları Saklıdır.</p>
+                <p class="mt-1">Yapay zeka modellerimiz 24/7 öğrenmeye devam eder. Bu panel tamamen bilgilendirme amaçlı olup finansal yatırım tavsiyesi içermez.</p>
+            </footer>
+
+        </main>
+        
+    </div>
+
+    <!-- ================= ⚡ SYSTEM JAVASCRIPT & BINDINGS ================= -->
+    <script>
+        // Store config and settings
+        const savedUrl = localStorage.getItem("render_api_url");
+        const defaultUrl = window.location.origin.includes("localhost") || window.location.origin.includes("127.0.0.1") 
+            ? (window.location.port === "5000" ? window.location.origin : "http://localhost:5000") 
+            : "https://kripto-analiz-botu.onrender.com";
+        let apiBase = savedUrl || defaultUrl;
+        document.getElementById("api-url").value = apiBase;
+
+        let settingsStore = { bot_active: false, sim_mode: true, leverage: 1, tg_active: false, tg_token: "", tg_chat_id: "", tg_data_chat_id: "" };
+        let selectedCoin = "BTC";
+        let selectedTimeframe = "15m";
+        let tvWidgetSymbol = "";
+
+        function showNotification(message, type = "success") {
+            const container = document.getElementById("notification-container") || createNotificationContainer();
+            const toast = document.createElement("div");
+            toast.className = `flex items-center gap-2.5 px-4 py-3 rounded-2xl shadow-xl border text-xs font-semibold transition-all duration-300 transform translate-y-4 opacity-0 pointer-events-auto ${
+                type === "success" 
+                ? "bg-emerald-50 border-emerald-100 text-emerald-800 shadow-emerald-100/30" 
+                : "bg-rose-50 border-rose-100 text-rose-800 shadow-rose-100/30"
+            }`;
+            toast.innerHTML = `
+                <span class="text-sm">${type === "success" ? "✨" : "⚠️"}</span>
+                <span>${message}</span>
+            `;
+            container.appendChild(toast);
+            
+            // Animate in
+            setTimeout(() => {
+                toast.classList.remove("translate-y-4", "opacity-0");
+            }, 10);
+            
+            // Slide out and remove
+            setTimeout(() => {
+                toast.classList.add("translate-y-4", "opacity-0");
+                setTimeout(() => {
+                    toast.remove();
+                }, 300);
+            }, 3000);
+        }
+
+        function createNotificationContainer() {
+            const container = document.createElement("div");
+            container.id = "notification-container";
+            container.className = "fixed top-6 right-6 z-50 flex flex-col gap-2 pointer-events-none";
+            document.body.appendChild(container);
+            return container;
+        }
+
+        function saveApiUrl() {
+            let inputUrl = document.getElementById("api-url").value.trim();
+            if (inputUrl.endsWith("/")) {
+                inputUrl = inputUrl.slice(0, -1);
+            }
+            if (inputUrl) {
+                localStorage.setItem("render_api_url", inputUrl);
+                apiBase = inputUrl;
+                showNotification("API adresi güncellendi. Yeni bağlantı kuruluyor!", "success");
+                pollAllData();
+            }
+        }
+
+
+        function togglePasswordVisibility(id, btn) {
+            const input = document.getElementById(id);
+            const icon = btn.querySelector("i");
+            if (input.type === "password") {
+                input.type = "text";
+                icon.className = "fa-solid fa-eye-slash text-xs";
+            } else {
+                input.type = "password";
+                icon.className = "fa-solid fa-eye text-xs";
+            }
+        }
+
+        function updateLeverageVal(val) {
+            document.getElementById("leverage-val").textContent = val + "x";
+        }
+
+        function updateRefreshIntervalVal(val) {
+            document.getElementById("refresh-interval-val").textContent = val + " sn";
+            resetIntervals();
+        }
+
+        // Fetch settings from API
+        async function fetchSettings() {
+            try {
+                const res = await fetch(`${apiBase}/api/settings`);
+                if (!res.ok) throw new Error("Settings fetch failed");
+                const data = await res.json();
+                
+                settingsStore = data;
+                
+                document.getElementById("bot-active-toggle").checked = data.bot_active || false;
+                document.getElementById("sim-mode-toggle").checked = data.sim_mode !== undefined ? data.sim_mode : true;
+                
+                document.getElementById("leverage-slider").value = data.leverage || 1;
+                updateLeverageVal(data.leverage || 1);
+
+                document.getElementById("tg-active-toggle").checked = data.tg_active || false;
+                document.getElementById("tg-token-input").value = data.tg_token || "";
+                document.getElementById("tg-chat-id-input").value = data.tg_chat_id || "";
+                document.getElementById("tg-data-chat-id-input").value = data.tg_data_chat_id || "";
+
+                const pulse = document.getElementById("status-pulse");
+                const text = document.getElementById("status-text");
+                if (pulse && text) {
+                    pulse.className = "w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse";
+                    text.className = "text-xs font-bold font-mono text-emerald-500 uppercase";
+                    text.textContent = "BAĞLANDI";
+                }
+            } catch (err) {
+                console.error("Settings load error:", err);
+                const pulse = document.getElementById("status-pulse");
+                const text = document.getElementById("status-text");
+                if (pulse && text) {
+                    pulse.className = "w-2.5 h-2.5 rounded-full bg-rose-500";
+                    text.className = "text-xs font-bold font-mono text-rose-500 uppercase";
+                    text.textContent = "BAĞLANTI KESİLDİ";
+                }
+            }
+        }
+
+        // Submit changed settings
+        async function submitSettings() {
+            const active = document.getElementById("bot-active-toggle").checked;
+            const sim = document.getElementById("sim-mode-toggle").checked;
+            const lev = parseInt(document.getElementById("leverage-slider").value);
+            const tgActive = document.getElementById("tg-active-toggle").checked;
+            const tgToken = document.getElementById("tg-token-input").value.trim();
+            const tgChatId = document.getElementById("tg-chat-id-input").value.trim();
+            const tgDataChatId = document.getElementById("tg-data-chat-id-input").value.trim();
+            
+            const payload = {
+                ...settingsStore,
+                bot_active: active,
+                sim_mode: sim,
+                leverage: lev,
+                tg_active: tgActive,
+                tg_token: tgToken,
+                tg_chat_id: tgChatId,
+                tg_data_chat_id: tgDataChatId
+            };
+            
+            try {
+                const res = await fetch(`${apiBase}/api/settings`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                });
+                if (res.ok) {
+                    const resData = await res.json();
+                    settingsStore = resData.settings;
+                }
+            } catch (err) {
+                console.error("Settings save error:", err);
+            }
+        }
+
+        // Send Test Telegram message
+        async function sendTelegramTest() {
+            const tgToken = document.getElementById("tg-token-input").value.trim();
+            const tgChatId = document.getElementById("tg-chat-id-input").value.trim();
+            
+            if (!tgToken || !tgChatId) {
+                alert("Lütfen önce Bot Token ve Chat ID alanlarını doldurunuz!");
+                return;
+            }
+
+            try {
+                const res = await fetch(`${apiBase}/api/telegram-test`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ tg_token: tgToken, tg_chat_id: tgChatId })
+                });
+                const resData = await res.json();
+                if (resData.success) {
+                    alert("Test mesajı başarıyla Telegram üzerinden gönderildi! 🔔");
+                } else {
+                    alert("Telegram Hatası: " + resData.message);
+                }
+            } catch (err) {
+                alert("Bağlantı Hatası: Test mesajı sunucuya gönderilemedi.");
+            }
+        }
+
+        // Fetch Balance
+        async function fetchBalance() {
+            try {
+                const res = await fetch(`${apiBase}/api/balance`);
+                if (!res.ok) throw new Error("Balance load failed");
+                const data = await res.json();
+                document.getElementById("bot-panel-balance").textContent = "Bakiye: $" + parseFloat(data.balance || 1000.0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            } catch (err) {
+                console.error("Balance fetch error:", err);
+            }
+        }
+
+        // Handle Dropdown changes
+        function changeSelectedCoin(val) {
+            selectedCoin = val;
+            document.getElementById("dna-section-title").textContent = `🧬 ${val} DNA Davranış Profili`;
+            document.getElementById("analysis-coin-title").textContent = `🪙 ${val} Analizi`;
+            
+            fetchAnalysis();
+        }
+
+        function changeSelectedTimeframe(val) {
+            selectedTimeframe = val;
+            fetchAnalysis();
+        }
+
+        // Fetch Analysis Details for Selected Coin
+        async function fetchAnalysis() {
+            try {
+                const res = await fetch(`${apiBase}/api/analysis/${selectedCoin}/${selectedTimeframe}`);
+                if (!res.ok) throw new Error("Analysis load failed");
+                const data = await res.json();
+                
+                if (data.status === "success") {
+                    // Populate premium header cards (Streamlit UI match)
+                    const tickerData = data.ticker || {};
+                    const coinInfo = data.coin_info || {};
+                    
+                    document.getElementById("header-price-title").textContent = `${selectedCoin} FİYAT`;
+                    
+                    const priceVal = parseFloat(tickerData.last || 0.0);
+                    document.getElementById("header-price-val").textContent = "$" + priceVal.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 4});
+                    
+                    const priceChangePct = parseFloat(tickerData.changePercent || 0.0);
+                    const changeEl = document.getElementById("header-price-change");
+                    changeEl.textContent = (priceChangePct >= 0 ? "+" : "") + priceChangePct.toFixed(2) + "% (24s)";
+                    changeEl.className = `block text-[10px] font-bold ${priceChangePct >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+                    
+                    const quoteVolume = parseFloat(tickerData.quoteVolume || 0.0);
+                    document.getElementById("header-volume-val").textContent = "$" + quoteVolume.toLocaleString('en-US', {maximumFractionDigits: 0});
+                    
+                    const high = parseFloat(tickerData.high || 0.0);
+                    const low = parseFloat(tickerData.low || 0.0);
+                    document.getElementById("header-highlow-val").textContent = "$" + low.toLocaleString('en-US', {minimumFractionDigits: 2}) + " / $" + high.toLocaleString('en-US', {minimumFractionDigits: 2});
+                    
+                    const rangePct = low > 0 ? ((high - low) / low) * 100 : 0.0;
+                    document.getElementById("header-highlow-sub").textContent = `Genişlik: %${rangePct.toFixed(2)}`;
+                    
+                    const rank = coinInfo.market_cap_rank || 0;
+                    document.getElementById("header-rank-val").textContent = `SIRA #${rank}`;
+                    
+                    const mcap = parseFloat(coinInfo.market_cap || 0.0);
+                    document.getElementById("header-marketcap-val").textContent = "$" + mcap.toLocaleString('en-US', {maximumFractionDigits: 0});
+
+                    const signal = data.signal || {};
+                    const ta = data.ta_result || {};
+                    const dna = data.dna || {};
+                    const weights = data.weights || {};
+                    
+                    // Render DNA values
+                    document.getElementById("dna-trend-val").textContent = "%" + Math.round((dna.trendiness || 0.5) * 100);
+                    document.getElementById("dna-fakeout-val").textContent = "%" + Math.round((dna.fakeout_prob || 0.2) * 100);
+                    document.getElementById("dna-reversion-val").textContent = "%" + Math.round((dna.mean_reversion || 0.5) * 100);
+                    document.getElementById("dna-breakout-val").textContent = "%" + Math.round((dna.breakout_reliability || 0.5) * 100);
+                    document.getElementById("dna-volatility-val").textContent = "%" + Math.round((dna.volatility || 0.5) * 100);
+
+                    // Render weights
+                    document.getElementById("weight-rsi").textContent = "%" + ((weights.rsi || 0.0) * 100).toFixed(1);
+                    document.getElementById("weight-macd").textContent = "%" + ((weights.macd || 0.0) * 100).toFixed(1);
+                    document.getElementById("weight-ema").textContent = "%" + ((weights.ema_crossover || 0.0) * 100).toFixed(1);
+                    document.getElementById("weight-bollinger").textContent = "%" + ((weights.bollinger || 0.0) * 100).toFixed(1);
+                    document.getElementById("weight-adx").textContent = "%" + ((weights.trend_adx || 0.0) * 100).toFixed(1);
+                    document.getElementById("weight-volume").textContent = "%" + ((weights.volume || 0.0) * 100).toFixed(1);
+                    document.getElementById("weight-sentiment").textContent = "%" + ((weights.sentiment || 0.0) * 100).toFixed(1);
+                    document.getElementById("weight-candle").textContent = "%" + ((weights.candle_pattern || 0.0) * 100).toFixed(1);
+                    
+                    // Adjust weights color if high impact (>20%)
+                    const weightsKeys = ["rsi", "macd", "ema", "bollinger", "adx", "volume", "sentiment", "candle"];
+                    const weightsVals = [weights.rsi, weights.macd, weights.ema_crossover, weights.bollinger, weights.trend_adx, weights.volume, weights.sentiment, weights.candle_pattern];
+                    
+                    weightsKeys.forEach((key, idx) => {
+                        const val = weightsVals[idx] || 0.0;
+                        const el = document.getElementById(`weight-${key}`);
+                        if (val > 0.20) {
+                            el.className = "block text-base font-extrabold text-emerald-600";
+                        } else {
+                            el.className = "block text-base font-extrabold text-slate-700";
+                        }
+                    });
+
+                    // Signal Direction & Card setup
+                    const quantumScore = signal.quantum_score || 0.0;
+                    const regime = signal.regime || "ANALİZ EDİLİYOR";
+                    const isTradable = signal.is_tradable || false;
+                    const dir = signal.direction || "NEUTRAL";
+                    const dirLabel = signal.direction_label || "↔️ Yatay (Nötr)";
+                    const ev = signal.ev || 0.0;
+                    
+                    document.getElementById("signal-regime").textContent = `PİYASA REJİMİ: ${regime.replace("_", " ")}`;
+                    document.getElementById("signal-direction-label").textContent = dirLabel;
+                    
+                    // Dynamic premium gradient background based on direction
+                    const bannerEl = document.getElementById("signal-banner");
+                    const expectancyEl = document.getElementById("signal-expectancy");
+                    const riskEl = document.getElementById("signal-risk");
+                    
+                    let riskLabel = "🟡 Orta";
+                    if (quantumScore > 7.5) riskLabel = "🟢 Düşük";
+                    else if (quantumScore < 3.5) riskLabel = "🔴 Yüksek";
+                    
+                    if (riskEl) riskEl.textContent = riskLabel;
+                    if (expectancyEl) expectancyEl.textContent = signal.expectancy_label || (ev >= 0 ? "Kâr Beklentisi" : "Düşüş Baskısı");
+                    
+                    if (bannerEl) {
+                        if (dir === "LONG" || dir === "BUY") {
+                            bannerEl.className = "rounded-2xl p-6 text-center text-white relative overflow-hidden transition-all duration-300 shadow-md bg-gradient-to-br from-emerald-500 to-teal-600 border border-emerald-400/20";
+                        } else if (dir === "SHORT" || dir === "SELL") {
+                            bannerEl.className = "rounded-2xl p-6 text-center text-white relative overflow-hidden transition-all duration-300 shadow-md bg-gradient-to-br from-rose-500 to-red-600 border border-rose-400/20";
+                        } else {
+                            bannerEl.className = "rounded-2xl p-6 text-center text-white relative overflow-hidden transition-all duration-300 shadow-md bg-gradient-to-br from-amber-500 to-yellow-600 border border-amber-400/20";
+                        }
+                    }
+
+                    document.getElementById("signal-confidence").textContent = "%" + (signal.confidence || 50);
+
+                    document.getElementById("signal-uncertainty").textContent = signal.uncertainty_label || "ORTA";
+                    document.getElementById("signal-survival").textContent = "%" + ((signal.mc_survival_probability || 0.85) * 100).toFixed(1);
+                    document.getElementById("signal-similarity").textContent = "%" + ((signal.similarity_score || 1.0) * 100).toFixed(1);
+                    document.getElementById("signal-fakeout-prob").textContent = "%" + Math.round((signal.fakeout_prob || 0.20) * 100);
+                    document.getElementById("signal-edge").textContent = (signal.edge_multiplier || 1.0).toFixed(2) + "x";
+
+                    // Acceptance status badge
+                    const badgeEl = document.getElementById("signal-status-badge");
+                    if (dir !== "NEUTRAL") {
+                        if (isTradable) {
+                            badgeEl.textContent = `✅ SİNYAL UYGUN (Kuantum Skor: ${quantumScore.toFixed(1)})`;
+                            badgeEl.className = "p-2.5 rounded-xl text-center text-xs font-extrabold uppercase bg-emerald-50 border border-emerald-200 text-emerald-600 shadow-sm";
+                        } else {
+                            badgeEl.textContent = `❌ SİNYAL REDDEDİLDİ: ${signal.reject_reason || 'Kriter Uyumsuzluğu'}`;
+                            badgeEl.className = "p-2.5 rounded-xl text-center text-xs font-extrabold uppercase bg-rose-50 border border-rose-200 text-rose-600 shadow-sm";
+                        }
+                    } else {
+                        badgeEl.textContent = "⏱️ Yapay zeka yeni fırsatlar için piyasayı dinliyor.";
+                        badgeEl.className = "p-2.5 rounded-xl text-center text-xs font-extrabold uppercase bg-slate-50 border border-slate-150 text-slate-400";
+                    }
+
+                    // Trade levels setup
+                    const tps = signal.take_profit || [0.0];
+                    const tp1 = tps[0] || 0.0;
+                    const tp2 = tps[1] || tp1 * 1.05;
+                    
+                    document.getElementById("level-entry").textContent = "$" + parseFloat(signal.entry || 0.0).toFixed(4);
+                    document.getElementById("level-stop").textContent = "$" + parseFloat(signal.stop_loss || 0.0).toFixed(4);
+                    document.getElementById("level-tp1").textContent = "$" + parseFloat(tp1).toFixed(4);
+                    document.getElementById("level-tp2").textContent = "$" + parseFloat(tp2).toFixed(4);
+
+                    // Supports / Resistances
+                    const sr = ta.support_resistance || {};
+                    const supportsUl = document.getElementById("supports-list");
+                    const resistancesUl = document.getElementById("resistances-list");
+                    
+                    supportsUl.innerHTML = "";
+                    if (sr.supports && sr.supports.length > 0) {
+                        sr.supports.forEach(s => {
+                            supportsUl.innerHTML += `<li>• $${parseFloat(s).toFixed(4)}</li>`;
+                        });
+                    } else {
+                        supportsUl.innerHTML = "<li>• Destek bulunamadı</li>";
+                    }
+
+                    resistancesUl.innerHTML = "";
+                    if (sr.resistances && sr.resistances.length > 0) {
+                        sr.resistances.forEach(r => {
+                            resistancesUl.innerHTML += `<li>• $${parseFloat(r).toFixed(4)}</li>`;
+                        });
+                    } else {
+                        resistancesUl.innerHTML = "<li>• Direnç bulunamadı</li>";
+                    }
+
+                    // Comment bubble
+                    document.getElementById("ai-comment-bubble").textContent = signal.ai_comment || "Ensemble AI Analiz yorumu bulunamadı.";
+                }
+            } catch (err) {
+                console.error("Analysis load error:", err);
+            }
+        }
+
+        let closedTradesStore = [];
+        let avoidedTradesStore = [];
+
+        // Fetch avoided trades from bot_avoided_trades.json
+        async function fetchAvoided() {
+            try {
+                const res = await fetch(`${apiBase}/api/avoided`);
+                if (!res.ok) throw new Error("Avoided trades load failed");
+                const data = await res.json();
+                avoidedTradesStore = data;
+                renderPerformanceMetrics();
+            } catch (err) {
+                console.error("Avoided trades fetch error:", err);
+            }
+        }
+
+        async function fetchSpotPortfolio() {
+            try {
+                const res = await fetch(`${apiBase}/api/spot-portfolio`);
+                if (!res.ok) throw new Error("Spot portfolio load failed");
+                const spots = await res.json();
+                
+                const container = document.getElementById("spot-portfolio-container");
+                if (!container) return;
+                
+                if (!spots || spots.length === 0) {
+                    container.innerHTML = `<div class="col-span-full text-slate-400 text-center py-6 text-xs">Şu an için Spot AI kriterlerine uygun akümülasyonda coin bulunmuyor.</div>`;
+                    return;
+                }
+                
+                container.innerHTML = "";
+                spots.slice(0, 9).forEach(spot => {
+                    const card = document.createElement("div");
+                    card.className = "bg-emerald-50/20 border border-emerald-100 rounded-2xl p-4 space-y-3 hover:shadow-md transition duration-300 relative overflow-hidden group";
+                    
+                    const justifications = spot.gerekceler.slice(0, 2).map(g => `<span class="block text-[10px] text-slate-500">• ${g}</span>`).join("");
+                    
+                    card.innerHTML = `
+                        <div class="flex justify-between items-center border-b border-emerald-100/50 pb-2">
+                            <span class="font-extrabold text-slate-800 text-sm">🪙 ${spot.coin}</span>
+                            <span class="bg-emerald-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-full shadow-sm">SPOT PUANI: ${spot.puan}</span>
+                        </div>
+                        <div class="space-y-1.5 text-xs text-slate-700">
+                            <div class="flex justify-between"><span class="text-slate-400">Giriş Bölgesi:</span> <span class="font-bold text-emerald-600 font-mono">${spot.giris_bolgesi}</span></div>
+                            <div class="flex justify-between"><span class="text-slate-400">Kademeli Hedefler:</span> <span class="font-bold text-slate-800 font-mono">TP1: $${spot.hedefler[0].toFixed(3)} | TP2: $${spot.hedefler[1].toFixed(3)}</span></div>
+                            <div class="flex justify-between"><span class="text-slate-400">Stop Loss:</span> <span class="font-semibold text-rose-500 font-mono">${spot.stop_loss}</span></div>
+                        </div>
+                        <div class="border-t border-emerald-100/30 pt-2 space-y-1">
+                            <span class="block text-[9px] font-bold text-emerald-700 uppercase tracking-wide">AI Analiz Gerekçeleri</span>
+                            ${justifications}
+                        </div>
+                        <div class="absolute -right-6 -bottom-6 text-emerald-200/20 text-6xl font-black group-hover:scale-110 transition duration-300 pointer-events-none">${spot.coin}</div>
+                    `;
+                    container.appendChild(card);
+                });
+            } catch (err) {
+                console.error("Spot portfolio fetch error:", err);
+            }
+        }
+        // 🧠 Fetch and render Trade Memory data
+        async function fetchTradeMemory() {
+            try {
+                const res = await fetch(`${apiBase}/api/memory`);
+                if (!res.ok) throw new Error("Memory fetch failed");
+                const data = await res.json();
+                
+                const overall = data.overall || {};
+                const stats = data.stats || {};
+                const memory = data.memory || {};
+                
+                // Update stat cards
+                const totalEl = document.getElementById("mem-total-trades");
+                const winsEl = document.getElementById("mem-total-wins");
+                const wrEl = document.getElementById("mem-win-rate");
+                const pnlEl = document.getElementById("mem-total-pnl");
+                const coinsEl = document.getElementById("mem-coins-learned");
+                
+                if (totalEl) totalEl.textContent = overall.total_trades || 0;
+                if (winsEl) winsEl.textContent = `${overall.total_wins || 0} Kazanç`;
+                if (wrEl) {
+                    wrEl.textContent = `%${(overall.win_rate || 0).toFixed(1)}`;
+                    wrEl.className = `block text-xl font-extrabold ${overall.win_rate >= 50 ? 'text-emerald-600' : 'text-rose-500'}`;
+                }
+                if (pnlEl) {
+                    const pnl = overall.total_pnl || 0;
+                    pnlEl.textContent = `$${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}`;
+                    pnlEl.className = `block text-xl font-extrabold ${pnl >= 0 ? 'text-emerald-600' : 'text-rose-500'}`;
+                }
+                if (coinsEl) coinsEl.textContent = Object.keys(stats).length;
+                
+                // Render coin table
+                const tableBody = document.getElementById("memory-table-body");
+                if (tableBody && Object.keys(stats).length > 0) {
+                    const sorted = Object.entries(stats).sort((a, b) => b[1].pnl - a[1].pnl);
+                    tableBody.innerHTML = sorted.map(([coin, s]) => {
+                        const losses = s.count - s.wins;
+                        const pnlColor = s.pnl > 0 ? 'text-emerald-600' : s.pnl < 0 ? 'text-rose-500' : 'text-slate-500';
+                        const wrColor = s.win_rate >= 50 ? 'text-emerald-600' : 'text-rose-500';
+                        const emoji = s.pnl > 0 ? '🟢' : '🔴';
+                        return `<tr>
+                            <td class="p-2.5 font-bold text-slate-800">${emoji} ${coin}</td>
+                            <td class="p-2.5">${s.count}</td>
+                            <td class="p-2.5 font-bold text-emerald-600">${s.wins}</td>
+                            <td class="p-2.5 font-bold text-rose-500">${losses}</td>
+                            <td class="p-2.5 font-bold ${wrColor}">%${s.win_rate}</td>
+                            <td class="p-2.5 font-bold font-mono ${pnlColor}">$${s.pnl >= 0 ? '+' : ''}${s.pnl.toFixed(2)}</td>
+                        </tr>`;
+                    }).join("");
+                }
+                
+                // Render error patterns
+                const patternsEl = document.getElementById("memory-error-patterns");
+                if (patternsEl && Object.keys(memory).length > 0) {
+                    const patternCounts = { "Direnç LONG": 0, "Destek SHORT": 0, "RSI Aşırı": 0, "Düşük Hacim": 0, "EMA Yanlış": 0, "Trend Karşı": 0 };
+                    const patternIcons = { "Direnç LONG": "🚧", "Destek SHORT": "🛡️", "RSI Aşırı": "📈", "Düşük Hacim": "📉", "EMA Yanlış": "〰️", "Trend Karşı": "🔄" };
+                    
+                    Object.values(memory).forEach(trades => {
+                        trades.forEach(t => {
+                            const r = (t.exit_reason || "").toLowerCase();
+                            if (r.includes("direnç") || r.includes("resistance")) patternCounts["Direnç LONG"]++;
+                            if (r.includes("destek") || r.includes("support")) patternCounts["Destek SHORT"]++;
+                            if (r.includes("rsi") || r.includes("exhaustion") || r.includes("aşırı")) patternCounts["RSI Aşırı"]++;
+                            if (r.includes("hacim") || r.includes("volume")) patternCounts["Düşük Hacim"]++;
+                            if (r.includes("ema")) patternCounts["EMA Yanlış"]++;
+                            if (r.includes("trend") && (r.includes("karşı") || r.includes("bear"))) patternCounts["Trend Karşı"]++;
+                        });
+                    });
+                    
+                    const activePatterns = Object.entries(patternCounts).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+                    if (activePatterns.length > 0) {
+                        patternsEl.innerHTML = activePatterns.map(([name, count]) => `
+                            <div class="p-2 bg-rose-50 border border-rose-100 rounded-xl text-center space-y-0.5">
+                                <div class="text-base">${patternIcons[name] || '⚠️'}</div>
+                                <div class="text-[9px] font-bold text-rose-700 uppercase">${name}</div>
+                                <div class="text-base font-extrabold text-rose-600">${count}x</div>
+                            </div>
+                        `).join("");
+                    }
+                }
+                
+                // Render learning lessons
+                const lessonsEl = document.getElementById("memory-lessons");
+                if (lessonsEl && Object.keys(memory).length > 0) {
+                    const lessons = [];
+                    Object.entries(memory).forEach(([coin, trades]) => {
+                        trades.slice(-3).forEach(t => {
+                            if (t.exit_reason && t.exit_reason.length > 10) {
+                                lessons.push({ coin, reason: t.exit_reason.substring(0, 120), outcome: t.outcome || 0, regime: t.regime || "RANGE" });
+                            }
+                        });
+                    });
+                    
+                    if (lessons.length > 0) {
+                        lessonsEl.innerHTML = lessons.slice(-6).map(l => {
+                            const emoji = l.outcome === 1 ? '✅' : '❌';
+                            const bg = l.outcome === 1 ? 'bg-emerald-50 border-emerald-100' : 'bg-rose-50 border-rose-100';
+                            return `<div class="p-2 ${bg} border rounded-lg text-[11px]">
+                                ${emoji} <strong>[${l.coin}]</strong> <span class="text-slate-400">(${l.regime})</span> — ${l.reason}
+                            </div>`;
+                        }).join("");
+                    }
+                }
+            } catch (err) {
+                console.error("Trade memory fetch error:", err);
+            }
+        }
+
+        async function sendMemoryReport(btn) {
+            if (btn) { btn.disabled = true; btn.textContent = "📤 Gönderiliyor..."; }
+            try {
+                const res = await fetch(`${apiBase}/api/memory-report`, { method: 'POST' });
+                const data = await res.json();
+                if (data.success) {
+                    if (btn) { btn.textContent = "✅ Gönderildi!"; setTimeout(() => { btn.textContent = "📊 Telegram Raporu Gönder"; btn.disabled = false; }, 3000); }
+                } else {
+                    if (btn) { btn.textContent = "❌ Hata: " + (data.message || ""); setTimeout(() => { btn.textContent = "📊 Telegram Raporu Gönder"; btn.disabled = false; }, 3000); }
+                }
+            } catch (err) {
+                if (btn) { btn.textContent = "❌ Bağlantı Hatası"; setTimeout(() => { btn.textContent = "📊 Telegram Raporu Gönder"; btn.disabled = false; }, 3000); }
+            }
+        }
+
+        // Render AI Learning & Win-Loss Performance metrics
+        function renderPerformanceMetrics() {
+            const winRateEl = document.getElementById("perf-win-rate");
+            const winRateSub = document.getElementById("perf-win-rate-sub");
+            
+            const wins = closedTradesStore.filter(t => parseFloat(t.pnl_yuzde || 0.0) > 0);
+            const losses = closedTradesStore.filter(t => parseFloat(t.pnl_yuzde || 0.0) < 0);
+            
+            // 1. AI Öğrenme Yüzdesi (Win Rate)
+            if (closedTradesStore.length >= 2) {
+                const winRate = (wins.length / closedTradesStore.length) * 100;
+                winRateEl.textContent = "%" + winRate.toFixed(1);
+                winRateSub.textContent = `${wins.length} Kazanç / ${closedTradesStore.length} Toplam İşlem`;
+            } else {
+                winRateEl.textContent = "Yetersiz Veri";
+                winRateSub.textContent = "Min. 2 Kapalı İşlem Gerekli";
+            }
+            
+            // 2. Kâr / Zarar Oranı (WL Ratio)
+            const wlRatioEl = document.getElementById("perf-wl-ratio");
+            const wlRatioSub = document.getElementById("perf-wl-ratio-sub");
+            if (losses.length > 0) {
+                const ratio = wins.length / losses.length;
+                wlRatioEl.textContent = ratio.toFixed(2) + "x";
+            } else if (wins.length > 0) {
+                wlRatioEl.textContent = wins.length + ":0";
+            } else {
+                wlRatioEl.textContent = "0.00x";
+            }
+            wlRatioSub.textContent = `Kazanç: ${wins.length} | Kayıp: ${losses.length}`;
+
+            // 3. AI Önlenen Zarar (Avoided Loss)
+            const avoidedEl = document.getElementById("perf-avoided-loss");
+            const avoidedSub = document.getElementById("perf-avoided-sub");
+            const avoidedWins = avoidedTradesStore.filter(t => t.durum === "BAŞARIYLA_KAÇINILDI");
+            const avoidedLossUsdt = avoidedWins.reduce((sum, t) => sum + Math.abs(parseFloat(t.pnl_usdt || t.risked_usdt || 0.0)), 0.0);
+            
+            const missedTrades = avoidedTradesStore.filter(t => t.durum === "KAÇIRILAN_FIRSAT");
+            const missedPnlUsdt = missedTrades.reduce((sum, t) => sum + parseFloat(t.pnl_usdt || 0.0), 0.0);
+            
+            avoidedEl.textContent = "+$" + avoidedLossUsdt.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            avoidedSub.textContent = `${avoidedWins.length} Önlenen Zarar | ${missedTrades.length} Kaçırılan Fırsat`;
+
+            // 4. Kümülatif Net Getiri %
+            const cumPnlEl = document.getElementById("perf-cum-pnl");
+            const cumPnlSub = document.getElementById("perf-cum-pnl-sub");
+            const totalPnlPct = closedTradesStore.reduce((sum, t) => sum + parseFloat(t.pnl_yuzde || 0.0), 0.0);
+            const totalPnlUsdt = closedTradesStore.reduce((sum, t) => sum + parseFloat(t.pnl_usdt || 0.0), 0.0);
+            
+            cumPnlEl.textContent = (totalPnlPct >= 0 ? "+" : "") + totalPnlPct.toFixed(2) + "%";
+            cumPnlEl.className = `block text-xl sm:text-2xl font-extrabold ${totalPnlPct >= 0 ? 'text-emerald-500' : 'text-rose-500'}`;
+            cumPnlSub.textContent = `Net Kâr/Zarar: $${totalPnlUsdt.toFixed(2)}`;
+
+            // 5. Yönsel İşlem Başarısı (Long vs Short)
+            const longTrades = closedTradesStore.filter(t => t.yon === "LONG" || t.yon === "BUY");
+            const shortTrades = closedTradesStore.filter(t => t.yon === "SHORT" || t.yon === "SELL");
+            
+            const longWins = longTrades.filter(t => parseFloat(t.pnl_yuzde || 0.0) > 0);
+            const shortWins = shortTrades.filter(t => parseFloat(t.pnl_yuzde || 0.0) > 0);
+            
+            const longPnlPct = longTrades.reduce((sum, t) => sum + parseFloat(t.pnl_yuzde || 0.0), 0.0);
+            const longPnlUsdt = longTrades.reduce((sum, t) => sum + parseFloat(t.pnl_usdt || 0.0), 0.0);
+            
+            const shortPnlPct = shortTrades.reduce((sum, t) => sum + parseFloat(t.pnl_yuzde || 0.0), 0.0);
+            const shortPnlUsdt = shortTrades.reduce((sum, t) => sum + parseFloat(t.pnl_usdt || 0.0), 0.0);
+            
+            // DOM Güncellemeleri
+            document.getElementById("perf-long-count").textContent = `${longTrades.length} İşlem (${longWins.length} Kazanç)`;
+            const longPctEl = document.getElementById("perf-long-pnl-pct");
+            longPctEl.textContent = (longPnlPct >= 0 ? "+" : "") + longPnlPct.toFixed(2) + "%";
+            longPctEl.className = `block text-lg font-extrabold font-mono ${longPnlPct >= 0 ? 'text-emerald-600' : 'text-rose-600'}`;
+            document.getElementById("perf-long-pnl-usdt").textContent = (longPnlUsdt >= 0 ? "+" : "") + "$" + longPnlUsdt.toFixed(2);
+            
+            document.getElementById("perf-short-count").textContent = `${shortTrades.length} İşlem (${shortWins.length} Kazanç)`;
+            const shortPctEl = document.getElementById("perf-short-pnl-pct");
+            shortPctEl.textContent = (shortPnlPct >= 0 ? "+" : "") + shortPnlPct.toFixed(2) + "%";
+            shortPctEl.className = `block text-lg font-extrabold font-mono ${shortPnlPct >= 0 ? 'text-emerald-600' : 'text-rose-600'}`;
+            document.getElementById("perf-short-pnl-usdt").textContent = (shortPnlUsdt >= 0 ? "+" : "") + "$" + shortPnlUsdt.toFixed(2);
+        }
+
+        function updateSyncBadge(status) {
+            const badge = document.getElementById("sync-status-badge");
+            const text = document.getElementById("sync-status-text");
+            if (!badge || !text) return;
+            
+            if (status === "syncing") {
+                badge.className = "flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-100 text-amber-700 text-[10px] font-extrabold shadow-sm transition-all duration-300";
+                badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span><span id="sync-status-text">BULUTLA SENKRONİZE EDİLİYOR...</span>`;
+            } else if (status === "success") {
+                badge.className = "flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-700 text-[10px] font-extrabold shadow-sm transition-all duration-300";
+                badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span><span id="sync-status-text">BULUT SENKRONİZE</span>`;
+            } else if (status === "error") {
+                badge.className = "flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-50 border border-rose-100 text-rose-700 text-[10px] font-extrabold shadow-sm transition-all duration-300";
+                badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span><span id="sync-status-text">BAĞLANTI HATASI</span>`;
+            }
+        }
+
+        // Bind active positions and closed trades from bot_trades.json
+        async function fetchTrades() {
+            try {
+                updateSyncBadge("syncing");
+                const res = await fetch(`${apiBase}/api/trades`);
+                if (!res.ok) throw new Error("Trades load failed");
+                const trades = await res.json();
+                
+                const tbody = document.getElementById("trades-table-body");
+                
+                // Filter open positions and defensively handle missing durum
+                const openTrades = trades.filter(t => t && t.durum === "AÇIK");
+                
+                // Filter closed trades
+                const closedTrades = trades.filter(t => t && t.durum !== "AÇIK").reverse(); // Newest first
+                
+                closedTradesStore = closedTrades;
+                renderPerformanceMetrics();
+
+                // Render Trades PNL Table
+                // Open trades first, then all closed trades
+                const sortedTrades = [...openTrades, ...closedTrades];
+                
+                if (sortedTrades.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="9" class="p-4 text-center text-slate-400 text-xs">Henüz bot tarafından yapılmış bir işlem bulunmuyor.</td></tr>`;
+                } else {
+                    tbody.innerHTML = "";
+                    sortedTrades.forEach(t => {
+                        if (!t || !t.coin) return; // Skip completely corrupted items
+                        
+                        const durum = t.durum || "BİLİNMİYOR";
+                        const isOpen = durum === "AÇIK";
+                        const durumBg = isOpen ? "bg-blue-600" : "bg-slate-400";
+                        
+                        const pnlPct = parseFloat(t.pnl_yuzde || 0.0);
+                        const pnlUsdt = parseFloat(t.pnl_usdt || 0.0);
+                        const pnlColor = pnlPct > 0 ? "text-emerald-500" : pnlPct < 0 ? "text-rose-500" : "text-slate-500";
+                        
+                        const currPrice = parseFloat(t.guncel_fiyat || t.giris_fiyati || 0.0);
+                        const girisFiyati = parseFloat(t.giris_fiyati || 0.0);
+                        
+                        const miktarUsdt = parseFloat(t.miktar_usdt || 0.0);
+                        let miktarYuzde = parseFloat(t.miktar_yuzde || 0.0);
+                        if (!miktarYuzde && miktarUsdt > 0) {
+                            const girisBakiye = parseFloat(t.giris_bakiye || 1000.0);
+                            miktarYuzde = (miktarUsdt / (girisBakiye > 0 ? girisBakiye : 1000.0)) * 100;
+                        }
+                        const miktarLabel = miktarUsdt > 0 ? `$${miktarUsdt.toFixed(2)} (%${miktarYuzde.toFixed(1)})` : "-";
+                        
+                        const tr = document.createElement("tr");
+                        tr.className = "hover:bg-slate-50 transition cursor-pointer border-b border-slate-100";
+                        tr.setAttribute("onclick", `selectCoinFromTable('${t.coin}')`);
+                        
+                        tr.innerHTML = `
+                            <td class="p-3"><span class="${durumBg} text-white px-2 py-0.5 rounded text-[9px] font-bold">${durum}</span></td>
+                            <td class="p-3"><strong>${t.coin}</strong></td>
+                            <td class="p-3 font-semibold">${t.yon || "NÖTR"}</td>
+                            <td class="p-3 font-mono font-bold text-slate-650">${miktarLabel}</td>
+                            <td class="p-3 font-mono">$${girisFiyati.toFixed(4)}</td>
+                            <td class="p-3 font-mono">$${currPrice.toFixed(4)}</td>
+                            <td class="p-3 font-mono font-bold ${pnlColor}">${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%</td>
+                            <td class="p-3 font-mono font-bold ${pnlColor}">${pnlUsdt >= 0 ? '+' : ''}$${pnlUsdt.toFixed(2)}</td>
+                            <td class="p-3 text-center">
+                                ${isOpen 
+                                    ? `<button onclick="event.stopPropagation(); closeTrade('${t.id}')" class="bg-rose-500 hover:bg-rose-600 text-white font-extrabold text-[10px] px-2.5 py-1.5 rounded-xl transition duration-150 active:scale-95 shadow-sm">Kapat</button>` 
+                                    : `<span class="text-slate-400 font-medium">-</span>`
+                                }
+                            </td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                }
+                updateSyncBadge("success");
+
+                // Render Closed trades history panel
+                const historyDiv = document.getElementById("history-list");
+                if (closedTrades.length === 0) {
+                    historyDiv.innerHTML = `<div class="text-slate-400 text-center py-10">Geçmiş işlem kaydı bulunmuyor.</div>`;
+                } else {
+                    historyDiv.innerHTML = "";
+                    closedTrades.forEach(t => {
+                        const isProfit = parseFloat(t.pnl_yuzde || 0) >= 0;
+                        const borderColor = isProfit ? "border-l-emerald-500" : "border-l-rose-500";
+                        const pnlVal = parseFloat(t.pnl_yuzde || 0).toFixed(2);
+                        
+                        const item = document.createElement("div");
+                        item.className = `p-3 bg-slate-50 border border-slate-200 border-l-4 ${borderColor} rounded-xl flex justify-between items-center hover:bg-slate-100 transition cursor-pointer`;
+                        item.setAttribute("onclick", `selectCoinFromTable('${t.coin}')`);
+                        
+                        item.innerHTML = `
+                            <div>
+                                <div class="flex items-center gap-1.5">
+                                    <span class="font-bold text-slate-800">${t.coin}</span>
+                                    <span class="text-[9px] bg-slate-200 text-slate-600 px-1 rounded font-bold">${t.yon}</span>
+                                </div>
+                                <span class="text-[9px] text-slate-400 font-mono">${t.tarih || 'Kapatıldı'}</span>
+                            </div>
+                            <div class="text-right">
+                                <span class="block font-bold ${isProfit ? 'text-emerald-500' : 'text-rose-500'} font-mono">${isProfit ? '+' : ''}${pnlVal}%</span>
+                                <span class="text-[9px] text-slate-400 font-mono">$${parseFloat(t.giris_fiyati).toFixed(3)} → $${parseFloat(t.cikis_fiyati || t.giris_fiyati).toFixed(3)}</span>
+                            </div>
+                        `;
+                        historyDiv.appendChild(item);
+                    });
+                }
+
+            } catch (err) {
+                console.error("Trades poll error:", err);
+                updateSyncBadge("error");
+            }
+        }
+
+        // Manual Close Position API Trigger
+        async function closeTrade(tradeId) {
+            if (!confirm("Bu pozisyonu anlık piyasa fiyatından kapatıp kârınızı realize etmek istediğinize emin misiniz?")) return;
+            try {
+                const res = await fetch(`${apiBase}/api/close-trade/${tradeId}`, {
+                    method: "POST"
+                });
+                const data = await res.json();
+                if (data.status === "success") {
+                    showNotification("Pozisyon başarıyla manuel kapatıldı!", "success");
+                    pollAllData(); // Refresh UI
+                } else {
+                    showNotification("Kapatma Hatası: " + data.message, "error");
+                }
+            } catch (err) {
+                showNotification("Sunucu Bağlantı Hatası!", "error");
+            }
+        }
+
+        // Quick click select coin from PNL tables
+        function selectCoinFromTable(coinName) {
+            const cleanCoin = coinName.replace("/USDT", "");
+            selectedCoin = cleanCoin;
+            
+            const selectEl = document.getElementById("selected-coin-select");
+            if (selectEl) {
+                selectEl.value = cleanCoin;
+            }
+            
+            changeSelectedCoin(cleanCoin);
+            renderCoinSidebar();
+        }
+
+        // Fetch running logs for the console
+        async function fetchLogs() {
+            try {
+                const res = await fetch(`${apiBase}/api/logs`);
+                if (!res.ok) throw new Error("Logs load failed");
+                const logs = await res.json();
+                
+                const consoleDiv = document.getElementById("terminal-console");
+                
+                if (!logs || logs.length === 0) {
+                    consoleDiv.innerHTML = `<div class="text-slate-500">Log verisi bulunamadı. Bekleniyor...</div>`;
+                    return;
+                }
+                
+                // Render green online badge
+                document.getElementById("status-pulse").className = "w-2.5 h-2.5 rounded-full bg-emerald-500";
+                document.getElementById("status-text").className = "text-xs font-bold font-mono text-emerald-500";
+                document.getElementById("status-text").textContent = "BAĞLANDI";
+                
+                let htmlLogs = "";
+                logs.forEach(line => {
+                    let style = "text-slate-300";
+                    if (line.includes("✅") || line.includes("success")) style = "text-emerald-400 font-medium";
+                    else if (line.includes("⚠️") || line.includes("warning") || line.includes("ATLANDI")) style = "text-amber-500";
+                    else if (line.includes("❌") || line.includes("error") || line.includes("Hatası")) style = "text-rose-500 font-bold";
+                    else if (line.includes("🔍") || line.includes("tarama") || line.includes("taranıyor")) style = "text-indigo-500";
+                    else if (line.includes("🚀") || line.includes("YAKALANDI")) style = "text-blue-500 font-bold";
+                    
+                    htmlLogs += `<div class="${style}">${escapeHtml(line)}</div>`;
+                });
+                
+                const isAtBottom = consoleDiv.scrollHeight - consoleDiv.clientHeight <= consoleDiv.scrollTop + 30;
+                consoleDiv.innerHTML = htmlLogs;
+                
+                if (isAtBottom || consoleDiv.innerHTML.length < 500) {
+                    consoleDiv.scrollTop = consoleDiv.scrollHeight;
+                }
+            } catch (err) {
+                // Render offline badge
+                document.getElementById("status-pulse").className = "w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse";
+                document.getElementById("status-text").className = "text-xs font-bold font-mono text-rose-500";
+                document.getElementById("status-text").textContent = "BAĞLANTI YOK";
+                
+                const consoleDiv = document.getElementById("terminal-console");
+                consoleDiv.innerHTML = `<div class="text-rose-500 font-bold"><i class="fa-solid fa-triangle-exclamation"></i> Sunucu ile bağlantı kurulamadı. Lütfen API adresini doğrulayın.</div>`;
+            }
+        }
+
+        // Adjust Bot status panel card classes based on states
+        function updateBotPanelUI() {
+            const isBotActive = settingsStore.bot_active;
+            const isSimMode = settingsStore.sim_mode;
+            
+            const statusEl = document.getElementById("bot-panel-status");
+            const cardEl = document.getElementById("bot-panel-card");
+            const aiPulseDot = document.getElementById("ai-pulse-dot");
+            const aiPulseText = document.getElementById("ai-pulse-text");
+            
+            const statusStr = isBotActive ? "AKTİF" : "KAPALI";
+            const modeStr = isSimMode ? "TEST MODU" : "GERÇEK İŞLEM";
+            
+            statusEl.textContent = `🤖 BOT DURUMU: ${statusStr} | ${modeStr}`;
+            
+            // Adjust card classes
+            if (isBotActive) {
+                cardEl.style.backgroundColor = "#FEF3C7";
+                cardEl.style.borderColor = "#F59E0B";
+                
+                // Adjust pulsing AI indicator
+                aiPulseDot.className = "ai-learning-active";
+                aiPulseText.textContent = "AI Veri Topluyor...";
+                aiPulseText.className = "text-xs font-bold text-blue-600";
+            } else {
+                cardEl.style.backgroundColor = "#FFFBEB";
+                cardEl.style.borderColor = "#FCD34D";
+                
+                // Adjust pulsing AI indicator
+                aiPulseDot.className = "ai-learning-inactive";
+                aiPulseText.textContent = "AI Beklemede";
+                aiPulseText.className = "text-xs font-bold text-slate-400";
+            }
+        }
+
+        function escapeHtml(text) {
+            return text
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        // Polling loop scheduler
+        async function pollAllData() {
+            await fetchSettings();
+            updateBotPanelUI();
+            
+            await Promise.all([
+                fetchBalance(),
+                fetchAnalysis(),
+                fetchTrades(),
+                fetchAvoided(),
+                fetchSpotPortfolio(),
+                fetchTradeMemory(),
+                fetchLogs()
+            ]);
+        }
+
+        // Initialize polling intervals
+        let pollTimer = null;
+        function resetIntervals() {
+            if (pollTimer) clearInterval(pollTimer);
+            
+            const isAuto = document.getElementById("auto-refresh-check").checked;
+            if (isAuto) {
+                const sec = parseInt(document.getElementById("refresh-interval-slider").value) * 1000;
+                pollTimer = setInterval(pollAllData, sec);
+            }
+        }
+
+        // Dynamic Coin List & Renderer
+        let backendCoins = ["BTC", "SOL"]; // Active coins only
+        
+        function renderCoinSidebar() {
+            const listContainer = document.getElementById("coin-buttons-list");
+            if (!listContainer) return;
+            
+            listContainer.innerHTML = "";
+            backendCoins.forEach(coin => {
+                const isActive = (coin === selectedCoin);
+                const btn = document.createElement("button");
+                btn.type = "button";
+                
+                // Super Sleek Glassmorphism Premium Style
+                if (isActive) {
+                    btn.className = "flex flex-col items-center justify-center py-2.5 rounded-xl bg-gradient-to-br from-indigo-650 to-indigo-750 text-white font-extrabold text-xs shadow-md shadow-indigo-150 transition transform scale-[1.03] border border-indigo-500/10";
+                } else {
+                    btn.className = "flex flex-col items-center justify-center py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-650 hover:bg-slate-100 hover:border-slate-350 hover:text-slate-900 transition font-extrabold text-xs shadow-sm";
+                }
+                
+                btn.onclick = () => {
+                    selectedCoin = coin;
+                    
+                    const selectEl = document.getElementById("selected-coin-select");
+                    if (selectEl) {
+                        selectEl.value = coin;
+                    }
+                    
+                    changeSelectedCoin(coin);
+                    renderCoinSidebar();
+                };
+                
+                // Premium Visual Icons
+                let iconHtml = "🪙";
+                if (coin === "BTC") iconHtml = "🪙";
+                else if (coin === "SOL") iconHtml = "☀️";
+                
+                btn.innerHTML = `
+                    <span class="text-sm mb-0.5">${iconHtml}</span>
+                    <span class="text-[10px] tracking-wider uppercase font-extrabold">${coin}</span>
+                `;
+                listContainer.appendChild(btn);
+            });
+        }
+        
+        async function fetchSupportedCoins() {
+            try {
+                const res = await fetch(`${apiBase}/`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.supported_coins && data.supported_coins.length > 0) {
+                        backendCoins = data.supported_coins;
+                        
+                        // Dynamically sync the hidden select options
+                        const selectEl = document.getElementById("selected-coin-select");
+                        if (selectEl) {
+                            selectEl.innerHTML = "";
+                            backendCoins.forEach(c => {
+                                const opt = document.createElement("option");
+                                opt.value = c;
+                                opt.textContent = c;
+                                selectEl.appendChild(opt);
+                            });
+                            selectEl.value = selectedCoin;
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error("Error fetching supported coins list:", err);
+            }
+            renderCoinSidebar();
+        }
+
+        function analyzeCustomCoin() {
+            const inputEl = document.getElementById("custom-coin-input");
+            if (!inputEl) return;
+            const val = inputEl.value.trim().toUpperCase();
+            if (!val) return;
+            
+            // Check if coin key is already supported
+            if (!backendCoins.includes(val)) {
+                backendCoins.push(val);
+                
+                const selectEl = document.getElementById("selected-coin-select");
+                if (selectEl) {
+                    const opt = document.createElement("option");
+                    opt.value = val;
+                    opt.textContent = val;
+                    selectEl.appendChild(opt);
+                }
+            }
+            
+            selectedCoin = val;
+            const selectEl = document.getElementById("selected-coin-select");
+            if (selectEl) {
+                selectEl.value = val;
+            }
+            
+            changeSelectedCoin(val);
+            renderCoinSidebar();
+            inputEl.value = ""; // Clear input
+        }
+
+        // Enter keypress hook for the custom coin input
+        setTimeout(() => {
+            const inputEl = document.getElementById("custom-coin-input");
+            if (inputEl) {
+                inputEl.addEventListener("keypress", (e) => {
+                    if (e.key === "Enter") {
+                        analyzeCustomCoin();
+                    }
+                });
+            }
+        }, 1000);
+
+        async function triggerManualRefresh(btn) {
+            if (!btn) return;
+            const icon = document.getElementById("refresh-spin-icon");
+            if (icon) icon.classList.add("animate-spin");
+            
+            btn.disabled = true;
+            const span = btn.querySelector("span");
+            if (span) span.textContent = "Yenileniyor...";
+            
+            try {
+                // Instantly fetch tresh live metrics & signals on demand
+                await Promise.all([
+                    fetchAnalysis(),
+                    fetchBalance()
+                ]);
+            } catch(e) {
+                console.error("Manual refresh fail:", e);
+            } finally {
+                setTimeout(() => {
+                    if (icon) icon.classList.remove("animate-spin");
+                    btn.disabled = false;
+                    if (span) span.textContent = "Şimdi Yenile";
+                }, 800);
+            }
+        }
+
+        // Initialize application launch
+        fetchSupportedCoins();
+        pollAllData();
+        resetIntervals();
+
+        // Listen for checkbox changes on auto refresh
+        document.getElementById("auto-refresh-check").addEventListener("change", resetIntervals);
+
+    </script>
+</body>
+</html>

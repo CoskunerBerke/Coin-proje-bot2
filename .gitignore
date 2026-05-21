@@ -1,0 +1,29 @@
+# 🔐 Sensitive Files (Environment variables)
+.env
+
+# 💾 Local Dynamic & Temporary Bot Data
+bot_logs.txt
+latest_opportunities.json
+bot_trades.json
+bot_avoided_trades.json
+db_backup.json
+coin_trade_memory.json
+git_commit_diffs.json
+*.tmp
+
+# 🐍 Python environment & cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# 💻 IDE configurations
+.vscode/
+.idea/
+*.swp
+*.swo
