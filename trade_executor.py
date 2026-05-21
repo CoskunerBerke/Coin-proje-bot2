@@ -136,6 +136,26 @@ class TradeExecutor:
                         total_pnl += t.get("tp1_pnl_usdt", 0) + t.get("tp2_pnl_usdt", 0)
                     elif t.get("tp1_hit", False):
                         total_pnl += t.get("tp1_pnl_usdt", 0)
+            
+            # 🔒 Hafıza Tabanlı Bakiye Koruması:
+            # Eğer trades dosyasında kapanmış işlem yoksa ama hafızada varsa,
+            # hafızadaki PNL'leri kullanarak bakiyeyi düzelt (Render restart koruması)
+            closed_in_trades = [t for t in trades if t.get("durum") == "KAPALI"]
+            if not closed_in_trades:
+                try:
+                    memory_file = "coin_trade_memory.json"
+                    if os.path.exists(memory_file):
+                        with open(memory_file, "r", encoding="utf-8") as f:
+                            memory = json.load(f)
+                        memory_pnl = 0.0
+                        for coin_key, entries in memory.items():
+                            for entry in entries:
+                                memory_pnl += entry.get("pnl_usdt", 0)
+                        if abs(memory_pnl) > abs(total_pnl):
+                            total_pnl = memory_pnl
+                except Exception:
+                    pass
+            
             starting = BOT_SETTINGS.get("starting_balance", 1000.0)
             return starting + total_pnl
         try:
