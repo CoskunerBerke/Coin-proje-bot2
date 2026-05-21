@@ -35,30 +35,30 @@ AI_MODE = "LEARN_AND_APPLY"  # LEARN_AND_APPLY = öğrenmeye devam et + öğrend
 # Bu kurallar subjektif prompt ifadelerini ("healthy volatility", "strong confidence")
 # sayısal, tekrarlanabilir ve deterministik filtrelere dönüştürür.
 INSTITUTIONAL_THRESHOLDS = {
-    "funding_overcrowded_long": 0.05,    # Funding > 0.05 → Long tarafı aşırı kalabalık (agresif: 0.03→0.05)
-    "funding_overcrowded_short": -0.05,  # Funding < -0.05 → Short tarafı aşırı kalabalık (agresif: -0.03→-0.05)
-    "oi_spike_threshold": 12.0,          # OI değişimi > %12 → Squeeze riski (agresif: 8→12)
-    "atr_anomaly_multiplier": 3.0,       # ATR > 20-periyot ortalamasının 3 katı (agresif: 2→3)
-    "volume_min_ratio": 0.15,            # Volume ratio < 0.15 → Yetersiz hacim (agresif: 0.5→0.15)
-    "min_rr_ratio": 0.8,                 # Risk/Ödül < 1:0.8 → İşlem yasak (agresif: 1.5→0.8)
-    "min_direction_vote": 0.04,          # Yön oyu < 0.04 → Kararsız (agresif: 0.08→0.04)
-    "min_ev_threshold": -0.25,           # EV <= -0.25 → Negatif beklenen değer (agresif: -0.10→-0.25)
-    "min_quality_score": 15,             # Kalite < 15/100 → Düşük kalite (agresif: 40→15)
-    "max_daily_consecutive_losses": 4,   # Gün içi üst üste 4 stop → O gün yasak (agresif: 2→4)
-    "max_daily_loss_pct": 5.0,           # Günlük toplam zarar > %5 → O gün yasak (agresif: 3→5)
+    "funding_overcrowded_long": 0.04,    # Funding > 0.04 → Long tarafı aşırı kalabalık
+    "funding_overcrowded_short": -0.04,  # Funding < -0.04 → Short tarafı aşırı kalabalık
+    "oi_spike_threshold": 10.0,          # OI değişimi > %10 → Squeeze riski
+    "atr_anomaly_multiplier": 2.5,       # ATR > 20-periyot ortalamasının 2.5 katı
+    "volume_min_ratio": 0.25,            # Volume ratio < 0.25 → Yetersiz hacim (geri sıkılaştırıldı)
+    "min_rr_ratio": 1.2,                 # Risk/Ödül < 1:1.2 → İşlem yasak (karlılık koruması)
+    "min_direction_vote": 0.05,          # Yön oyu < 0.05 → Kararsız
+    "min_ev_threshold": -0.05,           # EV <= -0.05 → Negatif beklenen değer (sıkı tutuldu)
+    "min_quality_score": 30,             # Kalite < 30/100 → Düşük kalite (çöp işlem koruması)
+    "max_daily_consecutive_losses": 3,   # Gün içi üst üste 3 stop → O gün yasak
+    "max_daily_loss_pct": 3.0,           # Günlük toplam zarar > %3 → O gün yasak
 }
 
 BOT_SETTINGS = {
     "is_active": False,
     "simulation_mode": True,
     "starting_balance": 1000.0,
-    "min_confidence": 15,
-    "risk_per_trade": 0.08,
+    "min_confidence": 20,
+    "risk_per_trade": 0.04,            # 🎯 Küçük pozisyon (%4) — daha çok işlem, daha az risk
     "leverage": 5,
-    "max_active_trades": 6,
-    "weak_momentum_profit_take_pct": 2.50,
-    "tp1_profit_take_pct": 3.50,
-    "trailing_activation_pct": 3.50,
+    "max_active_trades": 10,           # 🎯 10 eş zamanlı işlem — fırsatları kaçırma
+    "weak_momentum_profit_take_pct": 1.50,  # 🎯 Zayıf sinyalde hızlı çık (%1.5)
+    "tp1_profit_take_pct": 2.00,       # 🎯 Erken kâr al (%2) — sık kazanç
+    "trailing_activation_pct": 2.00,   # 🎯 Kârı hızlı kilitle (%2)
     "signal_invalidation_threshold": 85.0,
 }
 
