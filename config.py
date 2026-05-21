@@ -39,11 +39,11 @@ INSTITUTIONAL_THRESHOLDS = {
     "funding_overcrowded_short": -0.03,  # Funding < -0.03 → Short tarafı aşırı kalabalık, SHORT yasak
     "oi_spike_threshold": 8.0,           # OI değişimi > %8 → Squeeze riski, işlem yasak
     "atr_anomaly_multiplier": 2.0,       # ATR > 20-periyot ortalamasının 2 katı → Volatilite anomalisi
-    "volume_min_ratio": 0.5,             # Volume ratio < 0.5 → Yetersiz hacim, işlem yasak
-    "min_rr_ratio": 1.5,                 # Risk/Ödül < 1:1.5 → İşlem yasak (eski: 1:1, RANGE R:R=1.67 geçer)
+    "volume_min_ratio": 0.3,             # Volume ratio < 0.5 → Yetersiz hacim, işlem yasak
+    "min_rr_ratio": 1.0,                 # Risk/Ödül < 1:1.5 → İşlem yasak (eski: 1:1, RANGE R:R=1.67 geçer)
     "min_direction_vote": 0.08,          # Yön oyu < 0.08 → Kararsız, NEUTRAL kal (eski: 0.01)
     "min_ev_threshold": -0.10,           # EV <= -0.10 → Negatif beklenen değer, işlem yasak (eski: -0.5)
-    "min_quality_score": 40,             # Kalite < 40/100 → Düşük kalite, işlem yasak (eski: 30)
+    "min_quality_score": 20,             # Kalite < 40/100 → Düşük kalite, işlem yasak (eski: 30)
     "max_daily_consecutive_losses": 2,   # Gün içi üst üste 2 stop → O gün işlem yasak
     "max_daily_loss_pct": 3.0,           # Günlük toplam zarar > %3 → O gün işlem yasak
 }
