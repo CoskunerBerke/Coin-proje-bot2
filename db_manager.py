@@ -10,6 +10,9 @@ TRADE_FILE = "bot_trades.json"
 AVOIDED_FILE = "bot_avoided_trades.json"
 MEMORY_FILE = "coin_trade_memory.json"
 
+# 🔒 Bu botun kimliği — sync sırasında diğer botun verisi yüklenmesini engeller
+BOT_IDENTIFIER = "BOT2_AGGRESSIVE"
+
 class HybridDatabaseManager:
     _instance = None
     _lock = threading.Lock()
@@ -28,17 +31,53 @@ class HybridDatabaseManager:
         self.lock = threading.Lock()
         self.upload_timer = None
         
-        # Initial sync on startup (Cloud -> Local) — SKIP if fresh reset was just performed
+        # 🧹 Başlangıç temizliği: Bot 2 sadece BTC ve SOL trade eder
+        self._cleanup_wrong_coins()
+        
+        # Initial sync on startup (Cloud -> Local)
         RESET_FLAG = ".data_reset_v2_done"
         if os.path.exists(RESET_FLAG):
             add_log("☁️ Telegram Cloud Sync: Temiz başlangıç bayrağı algılandı — buluttan çekme atlanıyor.")
-            # Push the clean empty data TO the cloud to overwrite old backup
             self._force_push_empty_to_cloud()
         else:
             self.sync_from_cloud()
 
+    def _cleanup_wrong_coins(self):
+        """Bot 2 sadece BTC ve SOL trade eder. Yanlış coinlerin verilerini temizle."""
+        ALLOWED_COINS = {"BTC", "SOL"}
+        
+        # Trades temizle
+        if os.path.exists(TRADE_FILE):
+            try:
+                with open(TRADE_FILE, "r", encoding="utf-8") as f:
+                    trades = json.load(f)
+                original_count = len(trades)
+                trades = [t for t in trades if t.get("coin", "") in ALLOWED_COINS]
+                if len(trades) < original_count:
+                    with open(TRADE_FILE, "w", encoding="utf-8") as f:
+                        json.dump(trades, f, indent=4, ensure_ascii=False)
+                    removed = original_count - len(trades)
+                    add_log(f"🧹 Başlangıç Temizliği: {removed} yanlış coin trade'i silindi (sadece BTC/SOL tutuldu).")
+            except Exception:
+                pass
+        
+        # Memory temizle
+        if os.path.exists(MEMORY_FILE):
+            try:
+                with open(MEMORY_FILE, "r", encoding="utf-8") as f:
+                    memory = json.load(f)
+                original_keys = set(memory.keys())
+                memory = {k: v for k, v in memory.items() if k in ALLOWED_COINS}
+                removed_keys = original_keys - set(memory.keys())
+                if removed_keys:
+                    with open(MEMORY_FILE, "w", encoding="utf-8") as f:
+                        json.dump(memory, f, indent=4, ensure_ascii=False)
+                    add_log(f"🧹 Hafıza Temizliği: {removed_keys} coin hafızası silindi (sadece BTC/SOL tutuldu).")
+            except Exception:
+                pass
+
     def _get_sync_credentials(self):
-        """Sync ve Data kanallarının bilgilerini döndürür."""
+        """Sync kanalı bilgilerini döndürür."""
         try:
             from config import load_app_settings
             settings = load_app_settings()
@@ -46,52 +85,46 @@ class HybridDatabaseManager:
             settings = {}
             
         token = os.getenv("TELEGRAM_TOKEN", settings.get("tg_token", ""))
-        # 🔒 SYNC kanalı: Her botun KENDİ kanalı — pin çatışması olmaz
-        sync_chat_id = os.getenv("TELEGRAM_CHAT_ID", settings.get("tg_chat_id", ""))
-        # 📊 DATA kanalı: Paylaşılan grup — sadece kopya gönderilir
-        data_chat_id = os.getenv("TELEGRAM_DATA_CHAT_ID", settings.get("tg_data_chat_id", ""))
+        # 📊 DATA kanalı — sync ve görüntüleme buradan
+        data_chat_id = os.getenv("TELEGRAM_DATA_CHAT_ID", settings.get("tg_data_chat_id", os.getenv("TELEGRAM_CHAT_ID", settings.get("tg_chat_id", ""))))
         
-        return token, sync_chat_id, data_chat_id
+        return token, data_chat_id
 
     def _merge_trades(self, local_trades, cloud_trades):
         """Merges two trade histories, taking the union based on trade ID with strict validation."""
         trade_map = {}
+        ALLOWED_COINS = {"BTC", "SOL"}
         
         def is_valid(t):
             if not isinstance(t, dict):
                 return False
             if "coin" not in t or "id" not in t:
                 return False
-            # Filter out known malformed/dummy test items
+            # Bot 2 sadece BTC ve SOL trade eder
+            if t.get("coin", "") not in ALLOWED_COINS:
+                return False
             tid = str(t.get("id"))
-            if tid in ("render_avax_live", "avoid_btc") or t.get("coin") in ("AVAX", "BTC") and (len(t) < 4):
+            if tid in ("render_avax_live", "avoid_btc"):
                 return False
             return True
 
-        # Load local first
         for t in local_trades:
             if is_valid(t):
                 tid = str(t.get("id"))
                 trade_map[tid] = t
             
-        # Overwrite/Add cloud trades (cloud is considered more up-to-date for Render redeploys)
         for t in cloud_trades:
             if is_valid(t):
                 tid = str(t.get("id"))
                 if tid in trade_map:
                     local_t = trade_map[tid]
-                    # If cloud version has KAPALI status and local doesn't, or has newer updates, merge it
                     if t.get("durum") == "KAPALI" and local_t.get("durum") != "KAPALI":
                         trade_map[tid] = t
                     elif t.get("pnl_usdt", 0) != 0 and local_t.get("pnl_usdt", 0) == 0:
                         trade_map[tid] = t
-                    else:
-                        # Keep local if it has more fields or same status
-                        pass
                 else:
                     trade_map[tid] = t
                 
-        # Sort trades by descending timestamp or date
         merged = list(trade_map.values())
         try:
             merged.sort(key=lambda x: x.get("tarih", ""), reverse=True)
@@ -101,31 +134,26 @@ class HybridDatabaseManager:
 
     def _force_push_empty_to_cloud(self):
         """Pushes empty trade data to Telegram cloud to overwrite old backups after a reset."""
-        token, sync_chat_id, _ = self._get_sync_credentials()
+        token, chat_id = self._get_sync_credentials()
             
-        if not token or not sync_chat_id:
+        if not token or not chat_id:
             return
             
         try:
-            backup_data = {"trades": [], "avoided": []}
+            backup_data = {"trades": [], "avoided": [], "bot_id": BOT_IDENTIFIER}
             backup_file = "db_backup.json"
             with open(backup_file, "w", encoding="utf-8") as f:
                 json.dump(backup_data, f, indent=4, ensure_ascii=False)
                 
-            # Unpin old
-            url_unpin = f"https://api.telegram.org/bot{token}/unpinChatMessage"
-            requests.post(url_unpin, data={"chat_id": sync_chat_id}, timeout=5)
-            
-            # Send empty backup
             url_send = f"https://api.telegram.org/bot{token}/sendDocument"
             with open(backup_file, "rb") as f:
-                res = requests.post(url_send, data={"chat_id": sync_chat_id, "caption": "=== CLEAN RESET: BTC+SOL $1000 ==="}, files={"document": f}, timeout=10)
+                res = requests.post(url_send, data={"chat_id": chat_id, "caption": f"=== {BOT_IDENTIFIER} CLEAN RESET ==="}, files={"document": f}, timeout=10)
             
             send_res = res.json()
             if send_res.get("ok"):
                 message_id = send_res["result"]["message_id"]
                 url_pin = f"https://api.telegram.org/bot{token}/pinChatMessage"
-                requests.post(url_pin, data={"chat_id": sync_chat_id, "message_id": message_id, "disable_notification": True}, timeout=10)
+                requests.post(url_pin, data={"chat_id": chat_id, "message_id": message_id, "disable_notification": True}, timeout=10)
                 add_log("☁️ Telegram Cloud: Bulut yedeği boş veriyle güncellendi (temiz başlangıç).")
                 
             if os.path.exists(backup_file):
@@ -134,23 +162,26 @@ class HybridDatabaseManager:
             add_log(f"⚠️ Telegram Cloud temiz push hatası: {e}")
 
     def sync_from_cloud(self):
-        """Blocking initial pull from Telegram Pinned Message to restore any lost files after Render restarts.
-        🔒 Her bot KENDİ TELEGRAM_CHAT_ID kanalından sync yapar — pin çatışması olmaz.
+        """Blocking initial pull — sadece BU BOTA ait verileri yükler.
+        Diğer botun verisi bulunursa atlanır.
         """
-        # Block sync if reset was performed — don't let old cloud data overwrite clean slate
         if os.path.exists(".data_reset_v2_done"):
             return
             
-        token, sync_chat_id, _ = self._get_sync_credentials()
+        token, chat_id = self._get_sync_credentials()
         
-        if not token or not sync_chat_id:
-            add_log("⚠️ Telegram Cloud Sync: Telegram ayarları eksik. Bulut senkronizasyonu devre dışı bırakıldı.")
+        if not token or not chat_id:
+            add_log("⚠️ Telegram Cloud Sync: Telegram ayarları eksik.")
             return
 
         with self.lock:
             try:
+                # Bu botun ID'sini al
+                my_info = requests.get(f"https://api.telegram.org/bot{token}/getMe", timeout=5).json()
+                my_bot_id = my_info.get("result", {}).get("id", 0)
+                
                 url_get = f"https://api.telegram.org/bot{token}/getChat"
-                res = requests.get(url_get, params={"chat_id": sync_chat_id}, timeout=8)
+                res = requests.get(url_get, params={"chat_id": chat_id}, timeout=8)
                 if res.status_code != 200:
                     add_log(f"⚠️ Telegram Cloud Sync: getChat başarısız (HTTP {res.status_code})")
                     return
@@ -158,25 +189,40 @@ class HybridDatabaseManager:
                 chat_info = res.json()
                 pinned = chat_info.get("result", {}).get("pinned_message", {})
                 if pinned and pinned.get("document"):
+                    # 🛡️ Gönderen kontrolü: Sadece BU botun gönderdiği mesajı oku
+                    pinned_sender_id = pinned.get("from", {}).get("id", 0)
+                    if pinned_sender_id != my_bot_id and my_bot_id != 0:
+                        add_log(f"ℹ️ Telegram Cloud Sync: Pinli mesaj başka bota ait (sender: {pinned_sender_id}, ben: {my_bot_id}). Atlanıyor.")
+                        return
+                    
                     doc = pinned["document"]
                     file_id = doc["file_id"]
                     
-                    # Fetch file path
                     url_file = f"https://api.telegram.org/bot{token}/getFile"
                     file_res = requests.get(url_file, params={"file_id": file_id}, timeout=8).json()
                     file_path = file_res["result"]["file_path"]
                     
-                    # Download file
                     download_url = f"https://api.telegram.org/file/bot{token}/{file_path}"
                     download_res = requests.get(download_url, timeout=10)
                     if download_res.status_code == 200:
                         backup_data = download_res.json()
+                        
+                        # 🛡️ Bot kimlik kontrolü: Yanlış botun verisi yüklenmesini engelle
+                        backup_bot_id = backup_data.get("bot_id", "")
+                        if backup_bot_id and backup_bot_id != BOT_IDENTIFIER:
+                            add_log(f"⚠️ Telegram Cloud Sync: Yedek başka bota ait ({backup_bot_id}). Atlanıyor.")
+                            return
+                        
                         trades = backup_data.get("trades", [])
                         avoided = backup_data.get("avoided", [])
                         memory = backup_data.get("memory", {})
                         
-                        # 0. Sync Memory (coin_trade_memory.json)
+                        # 0. Sync Memory
                         if memory and isinstance(memory, dict):
+                            # Sadece BTC ve SOL hafızasını al
+                            ALLOWED = {"BTC", "SOL"}
+                            memory = {k: v for k, v in memory.items() if k in ALLOWED}
+                            
                             local_memory = {}
                             if os.path.exists(MEMORY_FILE):
                                 try:
@@ -195,7 +241,7 @@ class HybridDatabaseManager:
                             with open(MEMORY_FILE, "w", encoding="utf-8") as f:
                                 json.dump(local_memory, f, indent=4, ensure_ascii=False)
                         
-                        # 1. Sync Trades
+                        # 1. Sync Trades (merge filtreli — sadece BTC/SOL)
                         local_trades = []
                         if os.path.exists(TRADE_FILE):
                             try:
@@ -217,38 +263,35 @@ class HybridDatabaseManager:
                         with open(AVOIDED_FILE, "w", encoding="utf-8") as f:
                             json.dump(merged_avoided, f, indent=4, ensure_ascii=False)
                             
-                        add_log(f"☁️ Telegram Cloud Sync: Buluttan {len(merged_trades)} işlem başarıyla geri yüklendi.")
+                        add_log(f"☁️ Telegram Cloud Sync: Buluttan {len(merged_trades)} işlem geri yüklendi.")
                     else:
-                        add_log("⚠️ Telegram Cloud Sync: Yedekleme dosyası indirilemedi.")
+                        add_log("⚠️ Telegram Cloud Sync: Dosya indirilemedi.")
                 else:
                     if not getattr(self, '_pinned_not_found_logged', False):
-                        add_log("ℹ️ Telegram Cloud Sync: Pinned yedek bulunamadı. Bulutta yeni profil oluşturulacak.")
+                        add_log("ℹ️ Telegram Cloud Sync: Pinned yedek bulunamadı.")
                         self._pinned_not_found_logged = True
             except Exception as e:
                 add_log(f"⚠️ Telegram Cloud Sync Hatası: {str(e)}")
 
     def push_to_cloud(self, filename=None, key=None):
-        """Schedules a debounced asynchronous upload to Telegram to prevent notification spamming."""
+        """Schedules a debounced asynchronous upload."""
         with self.lock:
             if self.upload_timer is not None:
                 try:
                     self.upload_timer.cancel()
                 except Exception:
                     pass
-            
-            # Debounce: wait 15 seconds after the last activity before pushing, reducing spam
             self.upload_timer = threading.Timer(15.0, self._upload_worker)
             self.upload_timer.start()
 
     def _upload_worker(self):
-        token, sync_chat_id, data_chat_id = self._get_sync_credentials()
+        token, chat_id = self._get_sync_credentials()
             
-        if not token or not sync_chat_id:
+        if not token or not chat_id:
             return
             
         with self.lock:
             self.upload_timer = None
-            # Load local trades
             trades_data = []
             if os.path.exists(TRADE_FILE):
                 try:
@@ -256,7 +299,6 @@ class HybridDatabaseManager:
                         trades_data = json.load(f)
                 except Exception: pass
                 
-            # Load local avoided
             avoided_data = []
             if os.path.exists(AVOIDED_FILE):
                 try:
@@ -264,7 +306,6 @@ class HybridDatabaseManager:
                         avoided_data = json.load(f)
                 except Exception: pass
                 
-            # Load local memory
             memory_data = {}
             if os.path.exists(MEMORY_FILE):
                 try:
@@ -275,39 +316,25 @@ class HybridDatabaseManager:
             backup_data = {
                 "trades": trades_data,
                 "avoided": avoided_data,
-                "memory": memory_data
+                "memory": memory_data,
+                "bot_id": BOT_IDENTIFIER
             }
             
             backup_file = "db_backup.json"
             try:
-                # Save to a temporary single JSON file
                 with open(backup_file, "w", encoding="utf-8") as f:
                     json.dump(backup_data, f, indent=4, ensure_ascii=False)
                     
                 url_send = f"https://api.telegram.org/bot{token}/sendDocument"
-                
-                # 1. 🔒 SYNC kanalına gönder + PİNLE (bu botun kendi kanalı, çatışma yok)
                 with open(backup_file, "rb") as f:
-                    res = requests.post(url_send, data={"chat_id": sync_chat_id, "caption": "=== COIN PROJE DB BACKUP ==="}, files={"document": f}, timeout=10)
+                    res = requests.post(url_send, data={"chat_id": chat_id, "caption": f"=== {BOT_IDENTIFIER} DB BACKUP ==="}, files={"document": f}, timeout=10)
                 
                 send_res = res.json()
                 if send_res.get("ok"):
                     message_id = send_res["result"]["message_id"]
                     
-                    # Eski pini kaldır ve yenisini pinle (kendi kanalımız, çatışma yok)
-                    url_unpin = f"https://api.telegram.org/bot{token}/unpinChatMessage"
-                    requests.post(url_unpin, data={"chat_id": sync_chat_id}, timeout=10)
-                    
                     url_pin = f"https://api.telegram.org/bot{token}/pinChatMessage"
-                    requests.post(url_pin, data={"chat_id": sync_chat_id, "message_id": message_id, "disable_notification": True}, timeout=10)
-                
-                # 2. 📊 DATA kanalına kopya gönder (paylaşılan grup, PİNLEME YOK)
-                if data_chat_id and str(data_chat_id) != str(sync_chat_id):
-                    try:
-                        with open(backup_file, "rb") as f:
-                            requests.post(url_send, data={"chat_id": data_chat_id, "caption": "=== COIN PROJE BOT2 DB BACKUP (Kopya) ==="}, files={"document": f}, timeout=10)
-                    except Exception:
-                        pass
+                    requests.post(url_pin, data={"chat_id": chat_id, "message_id": message_id, "disable_notification": True}, timeout=10)
                     
             except Exception as e:
                 add_log(f"⚠️ Telegram Cloud Sync push hatası: {str(e)}")
