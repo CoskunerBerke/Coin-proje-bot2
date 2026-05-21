@@ -37,6 +37,22 @@ class HybridDatabaseManager:
         else:
             self.sync_from_cloud()
 
+    def _get_sync_credentials(self):
+        """Sync ve Data kanallarının bilgilerini döndürür."""
+        try:
+            from config import load_app_settings
+            settings = load_app_settings()
+        except Exception:
+            settings = {}
+            
+        token = os.getenv("TELEGRAM_TOKEN", settings.get("tg_token", ""))
+        # 🔒 SYNC kanalı: Her botun KENDİ kanalı — pin çatışması olmaz
+        sync_chat_id = os.getenv("TELEGRAM_CHAT_ID", settings.get("tg_chat_id", ""))
+        # 📊 DATA kanalı: Paylaşılan grup — sadece kopya gönderilir
+        data_chat_id = os.getenv("TELEGRAM_DATA_CHAT_ID", settings.get("tg_data_chat_id", ""))
+        
+        return token, sync_chat_id, data_chat_id
+
     def _merge_trades(self, local_trades, cloud_trades):
         """Merges two trade histories, taking the union based on trade ID with strict validation."""
         trade_map = {}
@@ -85,19 +101,9 @@ class HybridDatabaseManager:
 
     def _force_push_empty_to_cloud(self):
         """Pushes empty trade data to Telegram cloud to overwrite old backups after a reset."""
-        try:
-            from config import load_app_settings
-            settings = load_app_settings()
-        except Exception:
-            settings = {}
+        token, sync_chat_id, _ = self._get_sync_credentials()
             
-        token = os.getenv("TELEGRAM_TOKEN", settings.get("tg_token", ""))
-        chat_id = os.getenv("TELEGRAM_DATA_CHAT_ID", settings.get("tg_data_chat_id", os.getenv("TELEGRAM_CHAT_ID", settings.get("tg_chat_id", ""))))
-        
-        if str(chat_id) == "-5183733793":
-            chat_id = "-1003958108455"
-            
-        if not token or not chat_id:
+        if not token or not sync_chat_id:
             return
             
         try:
@@ -108,18 +114,18 @@ class HybridDatabaseManager:
                 
             # Unpin old
             url_unpin = f"https://api.telegram.org/bot{token}/unpinChatMessage"
-            requests.post(url_unpin, data={"chat_id": chat_id}, timeout=5)
+            requests.post(url_unpin, data={"chat_id": sync_chat_id}, timeout=5)
             
             # Send empty backup
             url_send = f"https://api.telegram.org/bot{token}/sendDocument"
             with open(backup_file, "rb") as f:
-                res = requests.post(url_send, data={"chat_id": chat_id, "caption": "=== CLEAN RESET: BTC+SOL $1000 ==="}, files={"document": f}, timeout=10)
+                res = requests.post(url_send, data={"chat_id": sync_chat_id, "caption": "=== CLEAN RESET: BTC+SOL $1000 ==="}, files={"document": f}, timeout=10)
             
             send_res = res.json()
             if send_res.get("ok"):
                 message_id = send_res["result"]["message_id"]
                 url_pin = f"https://api.telegram.org/bot{token}/pinChatMessage"
-                requests.post(url_pin, data={"chat_id": chat_id, "message_id": message_id, "disable_notification": True}, timeout=10)
+                requests.post(url_pin, data={"chat_id": sync_chat_id, "message_id": message_id, "disable_notification": True}, timeout=10)
                 add_log("☁️ Telegram Cloud: Bulut yedeği boş veriyle güncellendi (temiz başlangıç).")
                 
             if os.path.exists(backup_file):
@@ -128,34 +134,23 @@ class HybridDatabaseManager:
             add_log(f"⚠️ Telegram Cloud temiz push hatası: {e}")
 
     def sync_from_cloud(self):
-        """Blocking initial pull from Telegram Pinned Message to restore any lost files after Render restarts."""
+        """Blocking initial pull from Telegram Pinned Message to restore any lost files after Render restarts.
+        🔒 Her bot KENDİ TELEGRAM_CHAT_ID kanalından sync yapar — pin çatışması olmaz.
+        """
         # Block sync if reset was performed — don't let old cloud data overwrite clean slate
         if os.path.exists(".data_reset_v2_done"):
             return
             
-        # Avoid circular import of load_app_settings
-        try:
-            from config import load_app_settings
-            settings = load_app_settings()
-        except Exception:
-            settings = {}
-            
-        token = os.getenv("TELEGRAM_TOKEN", settings.get("tg_token", ""))
-        chat_id = os.getenv("TELEGRAM_DATA_CHAT_ID", settings.get("tg_data_chat_id", os.getenv("TELEGRAM_CHAT_ID", settings.get("tg_chat_id", ""))))
+        token, sync_chat_id, _ = self._get_sync_credentials()
         
-        # Upgrade/normalize old migrated group chat ID to the new supergroup ID
-        if str(chat_id) == "-5183733793":
-            chat_id = "-1003958108455"
-            
-        if not token or not chat_id:
+        if not token or not sync_chat_id:
             add_log("⚠️ Telegram Cloud Sync: Telegram ayarları eksik. Bulut senkronizasyonu devre dışı bırakıldı.")
             return
 
         with self.lock:
             try:
-                # add_log("☁️ Telegram Cloud Sync: Buluttan güncel yedek taranıyor...")
                 url_get = f"https://api.telegram.org/bot{token}/getChat"
-                res = requests.get(url_get, params={"chat_id": chat_id}, timeout=8)
+                res = requests.get(url_get, params={"chat_id": sync_chat_id}, timeout=8)
                 if res.status_code != 200:
                     add_log(f"⚠️ Telegram Cloud Sync: getChat başarısız (HTTP {res.status_code})")
                     return
@@ -163,18 +158,6 @@ class HybridDatabaseManager:
                 chat_info = res.json()
                 pinned = chat_info.get("result", {}).get("pinned_message", {})
                 if pinned and pinned.get("document"):
-                    # 🛡️ Pin çatışma koruması: Sadece BU botun gönderdiği pinli mesajı oku
-                    pinned_sender_id = pinned.get("from", {}).get("id", 0)
-                    my_info = requests.get(f"https://api.telegram.org/bot{token}/getMe", timeout=5).json()
-                    my_bot_id = my_info.get("result", {}).get("id", 0)
-                    
-                    if pinned_sender_id != my_bot_id:
-                        # Başka botun pinli mesajı, atlayarak devam et
-                        if not getattr(self, '_pinned_not_found_logged', False):
-                            add_log(f"ℹ️ Telegram Cloud Sync: Pinli mesaj başka bota ait (ID: {pinned_sender_id}), atlanıyor.")
-                            self._pinned_not_found_logged = True
-                        return
-                    
                     doc = pinned["document"]
                     file_id = doc["file_id"]
                     
@@ -200,7 +183,6 @@ class HybridDatabaseManager:
                                     with open(MEMORY_FILE, "r", encoding="utf-8") as f:
                                         local_memory = json.load(f)
                                 except Exception: pass
-                            # Merge: cloud entries extend local, dedup by timestamp
                             for coin, cloud_entries in memory.items():
                                 if coin not in local_memory:
                                     local_memory[coin] = cloud_entries
@@ -209,7 +191,6 @@ class HybridDatabaseManager:
                                     for entry in cloud_entries:
                                         if entry.get("timestamp") not in existing_timestamps:
                                             local_memory[coin].append(entry)
-                                    # Keep max 100 per coin (sliding window)
                                     local_memory[coin] = local_memory[coin][-100:]
                             with open(MEMORY_FILE, "w", encoding="utf-8") as f:
                                 json.dump(local_memory, f, indent=4, ensure_ascii=False)
@@ -236,7 +217,7 @@ class HybridDatabaseManager:
                         with open(AVOIDED_FILE, "w", encoding="utf-8") as f:
                             json.dump(merged_avoided, f, indent=4, ensure_ascii=False)
                             
-                        # add_log(f"☁️ Telegram Cloud Sync: Buluttan {len(merged_trades)} işlem ve {len(merged_avoided)} engellenen işlem başarıyla geri yüklendi.")
+                        add_log(f"☁️ Telegram Cloud Sync: Buluttan {len(merged_trades)} işlem başarıyla geri yüklendi.")
                     else:
                         add_log("⚠️ Telegram Cloud Sync: Yedekleme dosyası indirilemedi.")
                 else:
@@ -260,20 +241,9 @@ class HybridDatabaseManager:
             self.upload_timer.start()
 
     def _upload_worker(self):
-        try:
-            from config import load_app_settings
-            settings = load_app_settings()
-        except Exception:
-            settings = {}
+        token, sync_chat_id, data_chat_id = self._get_sync_credentials()
             
-        token = os.getenv("TELEGRAM_TOKEN", settings.get("tg_token", ""))
-        chat_id = os.getenv("TELEGRAM_DATA_CHAT_ID", settings.get("tg_data_chat_id", os.getenv("TELEGRAM_CHAT_ID", settings.get("tg_chat_id", ""))))
-        
-        # Upgrade/normalize old migrated group chat ID to the new supergroup ID
-        if str(chat_id) == "-5183733793":
-            chat_id = "-1003958108455"
-            
-        if not token or not chat_id:
+        if not token or not sync_chat_id:
             return
             
         with self.lock:
@@ -314,25 +284,31 @@ class HybridDatabaseManager:
                 with open(backup_file, "w", encoding="utf-8") as f:
                     json.dump(backup_data, f, indent=4, ensure_ascii=False)
                     
-                # 1. Send Document to Telegram Chat
                 url_send = f"https://api.telegram.org/bot{token}/sendDocument"
+                
+                # 1. 🔒 SYNC kanalına gönder + PİNLE (bu botun kendi kanalı, çatışma yok)
                 with open(backup_file, "rb") as f:
-                    res = requests.post(url_send, data={"chat_id": chat_id, "caption": "=== COIN PROJE DB BACKUP ==="}, files={"document": f}, timeout=10)
+                    res = requests.post(url_send, data={"chat_id": sync_chat_id, "caption": "=== COIN PROJE DB BACKUP ==="}, files={"document": f}, timeout=10)
                 
                 send_res = res.json()
                 if send_res.get("ok"):
                     message_id = send_res["result"]["message_id"]
                     
-                    # 2. Diğer botun pinini BOZMA (aynı grupta 2 bot çalışıyor)
-                    # url_unpin = f"https://api.telegram.org/bot{token}/unpinChatMessage"
-                    # requests.post(url_unpin, data={"chat_id": chat_id}, timeout=10)
+                    # Eski pini kaldır ve yenisini pinle (kendi kanalımız, çatışma yok)
+                    url_unpin = f"https://api.telegram.org/bot{token}/unpinChatMessage"
+                    requests.post(url_unpin, data={"chat_id": sync_chat_id}, timeout=10)
                     
-                    # 3. Pin the newly uploaded backup message
                     url_pin = f"https://api.telegram.org/bot{token}/pinChatMessage"
-                    requests.post(url_pin, data={"chat_id": chat_id, "message_id": message_id, "disable_notification": True}, timeout=10)
+                    requests.post(url_pin, data={"chat_id": sync_chat_id, "message_id": message_id, "disable_notification": True}, timeout=10)
+                
+                # 2. 📊 DATA kanalına kopya gönder (paylaşılan grup, PİNLEME YOK)
+                if data_chat_id and str(data_chat_id) != str(sync_chat_id):
+                    try:
+                        with open(backup_file, "rb") as f:
+                            requests.post(url_send, data={"chat_id": data_chat_id, "caption": "=== COIN PROJE BOT2 DB BACKUP (Kopya) ==="}, files={"document": f}, timeout=10)
+                    except Exception:
+                        pass
                     
-                    # Log success internally
-                    # add_log(f"☁️ Telegram Cloud Sync: Yedekleme başarıyla yüklendi ve sabitlendi.")
             except Exception as e:
                 add_log(f"⚠️ Telegram Cloud Sync push hatası: {str(e)}")
             finally:
