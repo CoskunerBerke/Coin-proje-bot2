@@ -816,7 +816,7 @@
         const savedUrl = localStorage.getItem("render_api_url");
         const defaultUrl = window.location.origin.includes("localhost") || window.location.origin.includes("127.0.0.1") 
             ? (window.location.port === "5000" ? window.location.origin : "http://localhost:5000") 
-            : "https://kripto-analiz-botu.onrender.com";
+            : "https://coin-proje-bot2.onrender.com";
         let apiBase = savedUrl || defaultUrl;
         document.getElementById("api-url").value = apiBase;
 
