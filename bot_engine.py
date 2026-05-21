@@ -150,9 +150,9 @@ def run_engine():
             
             # If running on Render, force bot_active to True. Otherwise check settings.
             bot_active = (os.getenv("RENDER") == "true") or settings.get("bot_active", False)
-            sim_mode = settings.get("sim_mode", True)
+            sim_mode = True        # 🔒 SABİT: Simülasyon modu her zaman açık
             timeframe = settings.get("timeframe", "1h")
-            leverage = settings.get("leverage", 1)
+            leverage = 3           # 🔒 SABİT: Kaldıraç her zaman 3x
             tg_active = settings.get("tg_active", False)
             tg_token = settings.get("tg_token", "")
             tg_chat_id = settings.get("tg_chat_id", "")
