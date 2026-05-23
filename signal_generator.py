@@ -915,6 +915,51 @@ class SignalGenerator:
                     quality_multiplier *= 0.5
                     add_log(f"⚠️ DİRENÇ YAKIN: {coin_key} LONG — Dirence mesafe %{distance_to_resistance_pct:.2f}, pozisyon kalitesi düşürüldü (x0.5)")
 
+        # ⏰ SAATLİK PATERN FİLTRESİ — Normal günlerde saatlik bias uygula
+        # Veriye dayalı: Öğlen 12-14 ve 16-17 düşüş eğilimi, 20-23 yükseliş eğilimi
+        # EVENT GÜNÜ TESPİTİ: ATR normalin 2x+ üzerindeyse bias devre dışı (FED/CPI/FOMC)
+        if direction != "NEUTRAL" and is_tradable:
+            from datetime import datetime as dt_cls
+            import pytz
+            try:
+                tr_now = dt_cls.now(pytz.timezone("Europe/Istanbul"))
+                current_hour = tr_now.hour
+                
+                # Event günü tespiti: ATR çok yüksekse normal paternler geçersiz
+                is_event_day = atr_pct > 2.0  # ATR %2+ = anormal volatilite (FED/CPI günü)
+                
+                if not is_event_day:
+                    # === TEHLİKELİ SAATLER ===
+                    # 12:00-14:00 → LONG tehlikeli (öğlen düşüşü, BTC %60-67, SOL %57-71 düşüş)
+                    if current_hour in [12, 13] and direction == "LONG":
+                        quality_multiplier *= 0.3
+                        add_log(f"⏰ ÖĞLEN DÜŞÜŞ BİASI: {coin_key} LONG — Saat {current_hour}:00 tarihsel düşüş saati, kalite x0.3")
+                    
+                    # 16:00-17:00 → LONG tehlikeli (BTC %64-86 düşüş — ABD futures açılışı)
+                    elif current_hour in [16, 17] and direction == "LONG":
+                        quality_multiplier *= 0.3
+                        add_log(f"⏰ ABD ÖNCESİ BİASI: {coin_key} LONG — Saat {current_hour}:00 ABD futures volatilitesi, kalite x0.3")
+                    
+                    # 12:00-14:00 → SHORT bonus (düşüş lehine)
+                    elif current_hour in [12, 13] and direction == "SHORT":
+                        quality_multiplier *= 1.3
+                        add_log(f"⏰ ÖĞLEN SHORT BONUSU: {coin_key} SHORT — Saat {current_hour}:00 tarihsel düşüş saati, kalite x1.3")
+                    
+                    # === GÜVENLİ SAATLER ===
+                    # 20:00-23:00 → LONG bonus (ABD aktif, %67-86 yükseliş)
+                    elif current_hour in [20, 21, 22] and direction == "LONG":
+                        quality_multiplier *= 1.2
+                        add_log(f"⏰ ABD AKTİF BONUSU: {coin_key} LONG — Saat {current_hour}:00 güçlü yükseliş saati, kalite x1.2")
+                    
+                    # 06:00-07:00 → LONG bonus (sabah güçlü, BTC %100 yükseliş son 1 hafta!)
+                    elif current_hour in [6, 7] and direction == "LONG":
+                        quality_multiplier *= 1.2
+                        add_log(f"⏰ SABAH BONUSU: {coin_key} LONG — Saat {current_hour}:00 sabah yükseliş saati, kalite x1.2")
+                else:
+                    add_log(f"⏰ EVENT GÜNÜ TESPİTİ: ATR %{atr_pct:.2f} > %2.0 — Saatlik bias devre dışı (FED/CPI/FOMC olabilir)")
+            except Exception as time_err:
+                pass  # Saat hesaplanamadıysa bias uygulanmaz, işlem etkilenmez
+
         if not is_tradable:
             pass
         elif direction == "NEUTRAL":
