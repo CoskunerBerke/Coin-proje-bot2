@@ -919,10 +919,9 @@ class SignalGenerator:
         # Veriye dayalı: Öğlen 12-14 ve 16-17 düşüş eğilimi, 20-23 yükseliş eğilimi
         # EVENT GÜNÜ TESPİTİ: ATR normalin 2x+ üzerindeyse bias devre dışı (FED/CPI/FOMC)
         if direction != "NEUTRAL" and is_tradable:
-            from datetime import datetime as dt_cls
-            import pytz
+            from datetime import datetime as dt_cls, timezone, timedelta
             try:
-                tr_now = dt_cls.now(pytz.timezone("Europe/Istanbul"))
+                tr_now = dt_cls.now(timezone(timedelta(hours=3)))  # UTC+3 Türkiye
                 current_hour = tr_now.hour
                 
                 # Event günü tespiti: ATR çok yüksekse normal paternler geçersiz
