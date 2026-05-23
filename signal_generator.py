@@ -884,6 +884,37 @@ class SignalGenerator:
                 is_tradable = False
                 reject_reason = f"VOLUME_TOO_LOW (Hacim Oranı: {vol_ratio:.2f} < {vol_min}) — Yetersiz hacim onayı"
 
+        # 🛡️ DESTEK/DİRENÇ YAKINLIK FİLTRESİ — Kâr potansiyeli düşük girişleri engelle
+        # SHORT açarken desteğe çok yakınsan → fiyat sıçrar, zarar edersin
+        # LONG açarken dirence çok yakınsan → fiyat geri döner, zarar edersin
+        struct_ta = ta_1h if ta_1h and ta_1h.get("support_resistance") else ta_result
+        supports = struct_ta.get("support_resistance", {}).get("supports", [])
+        resistances = struct_ta.get("support_resistance", {}).get("resistances", [])
+        support_level = round(supports[0], 6) if supports else 0.0
+        resistance_level = round(resistances[0], 6) if resistances else 0.0
+        
+        if direction != "NEUTRAL" and is_tradable and close > 0:
+            sr_proximity_min_pct = 1.5   # %1.5'ten az kâr potansiyeli → İŞLEME GİRME
+            sr_proximity_warn_pct = 2.5  # %1.5-%2.5 arası → Pozisyon küçült (kalite düşür)
+            
+            if direction == "SHORT" and support_level > 0:
+                distance_to_support_pct = ((close - support_level) / close) * 100
+                if distance_to_support_pct < sr_proximity_min_pct:
+                    is_tradable = False
+                    reject_reason = f"SUPPORT_TOO_CLOSE (Fiyat: {close:.2f}, Destek: {support_level:.2f}, Mesafe: %{distance_to_support_pct:.2f} < %{sr_proximity_min_pct}) — Kâr potansiyeli çok düşük"
+                elif distance_to_support_pct < sr_proximity_warn_pct:
+                    quality_multiplier *= 0.5
+                    add_log(f"⚠️ DESTEK YAKIN: {coin_key} SHORT — Desteğe mesafe %{distance_to_support_pct:.2f}, pozisyon kalitesi düşürüldü (x0.5)")
+                    
+            elif direction == "LONG" and resistance_level > 0:
+                distance_to_resistance_pct = ((resistance_level - close) / close) * 100
+                if distance_to_resistance_pct < sr_proximity_min_pct:
+                    is_tradable = False
+                    reject_reason = f"RESISTANCE_TOO_CLOSE (Fiyat: {close:.2f}, Direnç: {resistance_level:.2f}, Mesafe: %{distance_to_resistance_pct:.2f} < %{sr_proximity_min_pct}) — Kâr potansiyeli çok düşük"
+                elif distance_to_resistance_pct < sr_proximity_warn_pct:
+                    quality_multiplier *= 0.5
+                    add_log(f"⚠️ DİRENÇ YAKIN: {coin_key} LONG — Dirence mesafe %{distance_to_resistance_pct:.2f}, pozisyon kalitesi düşürüldü (x0.5)")
+
         if not is_tradable:
             pass
         elif direction == "NEUTRAL":
@@ -1035,11 +1066,7 @@ class SignalGenerator:
             "htf_alignment_score": htf_alignment_score
         }
 
-        struct_ta = ta_1h if ta_1h and ta_1h.get("support_resistance") else ta_result
-        supports = struct_ta.get("support_resistance", {}).get("supports", [])
-        resistances = struct_ta.get("support_resistance", {}).get("resistances", [])
-        support_level = round(supports[0], 6) if supports else 0.0
-        resistance_level = round(resistances[0], 6) if resistances else 0.0
+        # support_level ve resistance_level yukarıda (Destek/Direnç Yakınlık Filtresi'nde) hesaplandı
 
         ai_comment = self._generate_ai_comment(
             coin_key, mapped_regime, uncertainty_label, survival_prob,
