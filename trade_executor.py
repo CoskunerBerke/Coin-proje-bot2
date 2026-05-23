@@ -534,7 +534,7 @@ class TradeExecutor:
                     elif momentum_score >= 0.60:
                         tp1_pct = max(base_tp1 * 0.9, atr_percent * 2.0)
                     else:
-                        tp1_pct = max(3.0, atr_percent * 1.5)
+                        tp1_pct = max(1.5, atr_percent * 1.5)  # 🔥 AGRESİF: 3.0 → 1.5 (düşük momentumda daha erken kâr al)
 
                     # TP1 Hit Metrics Tracking
                     if t["pnl_yuzde"] >= tp1_pct and not t.get("tp1_hit_recorded", False):
@@ -549,7 +549,7 @@ class TradeExecutor:
                     # Peak PnL Protection check
                     peak_pnl_pct = t.get("peak_pnl_pct", 0.0)
                     peak_protection_triggered = False
-                    if peak_pnl_pct >= 2.0 and t["pnl_yuzde"] <= 0.3:
+                    if peak_pnl_pct >= 1.0 and t["pnl_yuzde"] <= 0.2:  # 🔥 AGRESİF: peak 2.0→1.0, geri dönüş 0.3→0.2
                         if momentum_score >= 0.65:
                             # Tighten trailing stop
                             if not t.get("trailing_active", False):
@@ -633,8 +633,8 @@ class TradeExecutor:
                     exit_reason = None
                     
                     weak_tp = max(
-                        BOT_SETTINGS.get("weak_momentum_profit_take_pct", 3.0),
-                        atr_percent * 1.25
+                        BOT_SETTINGS.get("weak_momentum_profit_take_pct", 1.50),  # 🔥 AGRESİF: Daha erken kâr al
+                        atr_percent * 1.0  # 🔥 1.25 → 1.0
                     )
                     
                     if peak_protection_triggered:
@@ -702,10 +702,10 @@ class TradeExecutor:
                             should_close = True
                             exit_reason = "STRUCTURE (Fiyat Direnç + Tampon Üstüne Kırıldı)"
                             
-                    # 3. Zamana Dayalı Erken Zarar Çıkışı (6 Saat Barajı)
-                    elif t["pnl_yuzde"] < -0.5 and t.get("holding_time", 0) >= 360.0:
+                    # 3. Zamana Dayalı Erken Zarar Çıkışı (3 Saat Barajı — AGRESİF)
+                    elif t["pnl_yuzde"] < -0.5 and t.get("holding_time", 0) >= 180.0:
                         should_close = True
-                        exit_reason = "ZAMAN_BARAJI (Negatif PnL ile 6 Saat Geçti)"
+                        exit_reason = "ZAMAN_BARAJI (Negatif PnL ile 3 Saat Geçti)"
                         
                     # 4. Vertical Barrier: Time Limit (24 Mum, Momentum Uyumlu)
                     else:
