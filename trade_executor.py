@@ -325,6 +325,13 @@ class TradeExecutor:
             
         final_risk_multiplier = risk_multiplier * drawdown_multiplier * streak_multiplier * regime_multiplier * correlation_multiplier * prob_multiplier
         
+        # 🌍 Makro Risk Çarpanı (Sadece BOT2_AGGRESSIVE, sadece YENİ işlemler)
+        # Normal koşullarda macro_risk_multiplier = 1.0 → sıfır etki
+        macro_risk_mult = signal_data.get("macro_risk_multiplier", 1.0)
+        if macro_risk_mult < 1.0:
+            final_risk_multiplier *= macro_risk_mult
+            add_log(f"🌍 Makro Risk: Pozisyon boyutu {macro_risk_mult:.0%}'e düşürüldü (Seviye: {signal_data.get('macro_level', 'N/A')})")
+        
         # Dinamik Kasa Yönetimi (Bileşik Getiri) & Entry Quality Boyutlandırma
         risk_per_trade = BOT_SETTINGS.get("risk_per_trade", 0.10)
         quality_multiplier = signal_data.get("quality_multiplier", 1.0)

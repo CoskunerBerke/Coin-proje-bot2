@@ -41,6 +41,9 @@ class HybridDatabaseManager:
             self._force_push_empty_to_cloud()
         else:
             self.sync_from_cloud()
+        
+        # 🔄 Tek Seferlik Veri Geri Yükleme (seed_restore.json varsa eski verileri birleştir)
+        self._apply_seed_restore()
 
     def _cleanup_wrong_coins(self):
         """Bot 2 sadece BTC ve SOL trade eder. Yanlış coinlerin verilerini temizle."""
@@ -131,6 +134,86 @@ class HybridDatabaseManager:
         except Exception:
             pass
         return merged
+
+    def _apply_seed_restore(self):
+        """Tek seferlik veri geri yükleme: seed_restore.json varsa eski verileri mevcut verilerle birleştirir."""
+        SEED_FILE = "seed_restore.json"
+        if not os.path.exists(SEED_FILE):
+            return
+        
+        try:
+            add_log("🔄 SEED RESTORE: Eski veri dosyası bulundu, birleştirme başlıyor...")
+            
+            with open(SEED_FILE, "r", encoding="utf-8") as f:
+                seed_data = json.load(f)
+            
+            seed_trades = seed_data.get("trades", [])
+            seed_avoided = seed_data.get("avoided", [])
+            seed_memory = seed_data.get("memory", {})
+            
+            # Mevcut lokal verileri oku
+            local_trades = []
+            if os.path.exists(TRADE_FILE):
+                with open(TRADE_FILE, "r", encoding="utf-8") as f:
+                    local_trades = json.load(f)
+            
+            local_avoided = []
+            if os.path.exists(AVOIDED_FILE):
+                with open(AVOIDED_FILE, "r", encoding="utf-8") as f:
+                    local_avoided = json.load(f)
+            
+            local_memory = {}
+            if os.path.exists(MEMORY_FILE):
+                with open(MEMORY_FILE, "r", encoding="utf-8") as f:
+                    local_memory = json.load(f)
+            
+            # Trade'leri birleştir (ID bazlı, mevcut _merge_trades kullan)
+            merged_trades = self._merge_trades(local_trades, seed_trades)
+            
+            # Avoided trade'leri birleştir (ID bazlı)
+            avoided_map = {}
+            for a in seed_avoided:
+                aid = str(a.get("id", ""))
+                if aid:
+                    avoided_map[aid] = a
+            for a in local_avoided:
+                aid = str(a.get("id", ""))
+                if aid:
+                    avoided_map[aid] = a  # Lokal öncelikli
+            merged_avoided = list(avoided_map.values())
+            
+            # Memory'yi birleştir (coin bazlı)
+            merged_memory = dict(seed_memory)
+            for coin, entries in local_memory.items():
+                if coin in merged_memory:
+                    existing_ids = {str(e.get("timestamp", "")) for e in merged_memory[coin]}
+                    for entry in entries:
+                        if str(entry.get("timestamp", "")) not in existing_ids:
+                            merged_memory[coin].append(entry)
+                else:
+                    merged_memory[coin] = entries
+            
+            # Dosyalara yaz
+            with open(TRADE_FILE, "w", encoding="utf-8") as f:
+                json.dump(merged_trades, f, indent=4, ensure_ascii=False)
+            
+            with open(AVOIDED_FILE, "w", encoding="utf-8") as f:
+                json.dump(merged_avoided, f, indent=4, ensure_ascii=False)
+            
+            with open(MEMORY_FILE, "w", encoding="utf-8") as f:
+                json.dump(merged_memory, f, indent=4, ensure_ascii=False)
+            
+            # Seed dosyasını sil (tekrar çalışmasın)
+            os.remove(SEED_FILE)
+            
+            add_log(f"✅ SEED RESTORE TAMAMLANDI: {len(merged_trades)} trade, {len(merged_avoided)} avoided, {len(merged_memory)} coin memory birleştirildi.")
+            
+        except Exception as e:
+            add_log(f"⚠️ SEED RESTORE HATASI: {str(e)}")
+            try:
+                os.remove(SEED_FILE)
+            except:
+                pass
 
     def _force_push_empty_to_cloud(self):
         """Pushes empty trade data to Telegram cloud to overwrite old backups after a reset."""

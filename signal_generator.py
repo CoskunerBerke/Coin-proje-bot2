@@ -274,7 +274,8 @@ class SignalGenerator:
                         sentiment_result: dict, timeframe: str = "1h", mtf_data: dict = None,
                         btc_trend: str = "NEUTRAL", btc_regime: str = "RANGE",
                         btc_reversal_trigger: bool = False, daily_trend_long: bool = True,
-                        ta_1h: dict = None, ta_4h: dict = None) -> dict:
+                        ta_1h: dict = None, ta_4h: dict = None,
+                        macro_risk_data: dict = None) -> dict:
         """Triple Barrier, Ensemble Voting, Bayesian Uncertainty, MTF Alignment ve Trade Quality Scoring tabanlı sinyal üretir."""
         if not ta_result or not ta_result.get("indicators"):
             return self._empty_signal()
@@ -764,6 +765,23 @@ class SignalGenerator:
 
         # Eşiği makul seviyede sınırlandır (SNIPER: %75 tavanlı — kaliteyi koru)
         adaptive_threshold = min(75.0, adaptive_threshold)
+        
+        # 🌍 Makro Risk Eşik Ayarı (Normal koşullarda macro_risk_data=None → sıfır etki)
+        macro_risk_multiplier = 1.0
+        macro_level = "NORMAL"
+        macro_short_bias = 0.0
+        if macro_risk_data and macro_risk_data.get('level', 'NORMAL') != 'NORMAL':
+            macro_level = macro_risk_data.get('level', 'NORMAL')
+            macro_threshold_adj = macro_risk_data.get('threshold_adjustment', 0.0)
+            macro_risk_multiplier = macro_risk_data.get('risk_multiplier', 1.0)
+            macro_short_bias = macro_risk_data.get('short_bias', 0.0)
+            adaptive_threshold += macro_threshold_adj
+            
+            # Makro krizde SHORT'a yatkınlık artır
+            if direction == "SHORT" and macro_short_bias > 0:
+                adaptive_threshold = max(40.0, adaptive_threshold - (macro_short_bias * 20))
+            
+            add_log(f"🌍 Makro Risk ({macro_level}): Eşik +{macro_threshold_adj}, Çarpan {macro_risk_multiplier:.0%}")
 
         # BTC Chaotic Volatility Filter
         if btc_regime == "CHAOTIC_VOLATILE":
@@ -1148,7 +1166,9 @@ class SignalGenerator:
             "wick_trap_score": wick_ratio,
             "breakout_confirmation_score": breakout_strength,
             "volume_confirmation_score": volume_confirmation,
-            "quality_multiplier": quality_multiplier
+            "quality_multiplier": quality_multiplier,
+            "macro_risk_multiplier": macro_risk_multiplier,
+            "macro_level": macro_level
         }
 
     def _generate_ai_comment(self, coin, regime, uncertainty, survival,

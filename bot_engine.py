@@ -15,6 +15,7 @@ from telegram_notifier import TelegramNotifier
 from config import load_app_settings, SUPPORTED_COINS, ACTIVE_COINS, BOT_SETTINGS, INSTITUTIONAL_THRESHOLDS
 from log_manager import add_log
 from counterfactual_analyzer import CounterfactualAnalyzer
+from macro_sentinel import MacroSentinel
 
 tr_tz = timezone(timedelta(hours=3))
 
@@ -127,6 +128,7 @@ def run_engine():
     signal_gen = SignalGenerator()
     executor = TradeExecutor(simulation_mode=True)
     cf_analyzer = CounterfactualAnalyzer()  # 🔮 Counterfactual Analiz Motoru
+    macro_sentinel = MacroSentinel()  # 🌍 Makro Ekonomik Farkındalık Motoru
     
     from spot_investor import SpotInvestor
     spot_investor = SpotInvestor(fetcher, analyzer)
@@ -223,6 +225,29 @@ def run_engine():
             # 🚀 3. Sinyal Taraması ve İşlem Açma
             if bot_active:
                 if current_time - last_scan_time >= scan_interval:
+                    # 🌍 Makro Risk Taraması (30dk cache, normal koşullarda sıfır etki)
+                    macro_risk_data = None
+                    macro_block_new_trades = False
+                    if macro_sentinel.is_enabled():
+                        try:
+                            macro_risk_data = macro_sentinel.get_macro_risk_score()
+                            macro_level = macro_risk_data.get('level', 'NORMAL')
+                            
+                            # Seviye değiştiğinde Telegram bildirimi
+                            if macro_risk_data.get('level_changed') and executor.notifier:
+                                try:
+                                    alert_msg = macro_sentinel.format_telegram_alert(macro_risk_data)
+                                    executor.notifier.send_message(alert_msg)
+                                except Exception as tg_err:
+                                    add_log(f"⚠️ Macro Sentinel Telegram hatası: {tg_err}")
+                            
+                            # KRİZ modunda yeni işlem açma
+                            if macro_level == 'KRIZ':
+                                macro_block_new_trades = True
+                                add_log("🔴 MAKRO KRİZ: Yeni işlem açma durduruldu! Mevcut pozisyonlar korunuyor.")
+                        except Exception as macro_err:
+                            add_log(f"⚠️ Macro Sentinel tarama hatası: {macro_err}")
+                    
                     add_log("🔍 Bot Aktif! Fırsatlar taranıyor...")
                     
                     # Tüm piyasayı tara
@@ -306,7 +331,8 @@ def run_engine():
                                 btc_trend=btc_trend, btc_regime=btc_regime,
                                 btc_reversal_trigger=btc_reversal_trigger,
                                 daily_trend_long=daily_trend_long,
-                                ta_1h=ta_1h, ta_4h=ta_4h
+                                ta_1h=ta_1h, ta_4h=ta_4h,
+                                macro_risk_data=macro_risk_data
                             )
                             all_signals.append({
                                 "coin": coin, 
@@ -547,6 +573,11 @@ def run_engine():
                                     # 🏦 Günlük ban kontrolü (Ardışık zarar veya günlük kayıp limiti)
                                     if daily_stats["is_banned"]:
                                         add_log(f"🚫 {opp['coin']} — Günlük işlem yasağı nedeniyle atlandı.")
+                                        continue
+                                    
+                                    # 🌍 Makro Kriz Engeli (mevcut pozisyonlara dokunmaz)
+                                    if macro_block_new_trades:
+                                        add_log(f"🔴 {opp['coin']} — Makro KRİZ modunda yeni işlem engellendi.")
                                         continue
                                     
                                     add_log(f"🚀 FIRSAT YAKALANDI: {opp['coin']} %{opp['confidence']} (EV: {opp['ev']})!")
