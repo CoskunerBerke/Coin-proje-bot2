@@ -140,8 +140,8 @@ def run_engine():
     last_memory_report_time = 0
     last_cf_update_time = 0  # 🔮 Counterfactual güncelleme zamanlayıcısı
     
-    scan_interval = 25     # 25 Saniyede bir tüm fırsatları tara (Agresif: daha hızlı tepki)
-    pnl_check_interval = 15 # 15 Saniyede bir açık pozisyonları güncelle (SL/TP)
+    scan_interval = 15     # 🔥 AGRESİF: 15 Saniyede bir tüm fırsatları tara (daha hızlı tepki)
+    pnl_check_interval = 10 # 🔥 AGRESİF: 10 Saniyede bir açık pozisyonları güncelle (SL/TP)
     
     while True:
         try:

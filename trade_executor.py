@@ -183,8 +183,8 @@ class TradeExecutor:
         if active_trades:
             return {"status": "skipped", "reason": "Zaten açık pozisyon var"}
 
-        # ⏳ REENTRY COOLDOWN CHECK (120 saniye bekleme süresi)
-        REENTRY_COOLDOWN_SECONDS = 120
+        # ⏳ REENTRY COOLDOWN CHECK (30 saniye bekleme süresi — AGRESİF)
+        REENTRY_COOLDOWN_SECONDS = 30
         last_closed_same_coin = [t for t in history if t.get("coin") == coin and t.get("durum") == "KAPALI"]
         if last_closed_same_coin:
             last_close = last_closed_same_coin[0]
@@ -213,8 +213,8 @@ class TradeExecutor:
                         last_close_time = datetime.strptime(last_close_time_str, "%Y-%m-%d %H:%M:%S")
                         now_naive = datetime.now(tr_tz).replace(tzinfo=None)
                         time_diff = now_naive - last_close_time
-                        if time_diff < timedelta(hours=1):
-                            remaining_minutes = int(60 - (time_diff.total_seconds() / 60))
+                        if time_diff < timedelta(minutes=20):  # AGRESİF: 20 dakika (eskiden 1 saat)
+                            remaining_minutes = int(20 - (time_diff.total_seconds() / 60))
                             msg = f"🚨 DEVRE KESİCİ AKTİF: Son 3 işlem zararla kapandı! {remaining_minutes} dakika soğuma süresi kaldı."
                             add_log(msg)
                             return {"status": "skipped", "reason": msg}

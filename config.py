@@ -39,11 +39,11 @@ INSTITUTIONAL_THRESHOLDS = {
     "funding_overcrowded_short": -0.04,  # Funding < -0.04 → Short tarafı aşırı kalabalık
     "oi_spike_threshold": 10.0,          # OI değişimi > %10 → Squeeze riski
     "atr_anomaly_multiplier": 2.5,       # ATR > 20-periyot ortalamasının 2.5 katı
-    "volume_min_ratio": 0.10,            # Volume ratio < 0.10 → Yetersiz hacim (BTC/SOL yüksek likidite)
-    "min_rr_ratio": 1.2,                 # Risk/Ödül < 1:1.2 → İşlem yasak (karlılık koruması)
-    "min_direction_vote": 0.05,          # Yön oyu < 0.05 → Kararsız
-    "min_ev_threshold": -0.05,           # EV <= -0.05 → Negatif beklenen değer (sıkı tutuldu)
-    "min_quality_score": 30,             # Kalite < 30/100 → Düşük kalite (çöp işlem koruması)
+    "volume_min_ratio": 0.05,            # Volume ratio < 0.05 → Yetersiz hacim (AGRESİF: daha düşük eşik)
+    "min_rr_ratio": 0.8,                 # Risk/Ödül < 1:0.8 → İşlem yasak (AGRESİF: daha toleranslı)
+    "min_direction_vote": 0.03,          # Yön oyu < 0.03 → Kararsız (AGRESİF: daha düşük eşik)
+    "min_ev_threshold": -0.15,           # EV <= -0.15 → Negatif beklenen değer (AGRESİF: daha geniş tolerans)
+    "min_quality_score": 15,             # Kalite < 15/100 → Düşük kalite (AGRESİF: daha fazla işleme izin ver)
     "max_daily_consecutive_losses": 3,   # Gün içi üst üste 3 stop → O gün yasak
     "max_daily_loss_pct": 3.0,           # Günlük toplam zarar > %3 → O gün yasak
 }
@@ -52,8 +52,8 @@ BOT_SETTINGS = {
     "is_active": True,
     "simulation_mode": True,
     "starting_balance": 1000.0,
-    "min_confidence": 20,
-    "risk_per_trade": 0.04,            # 🎯 Küçük pozisyon (%4) — daha çok işlem, daha az risk
+    "min_confidence": 15,              # 🔥 AGRESİF: Daha düşük güven eşiği
+    "risk_per_trade": 0.06,            # 🔥 AGRESİF: Daha büyük pozisyon (%6)
     "leverage": 5,
     "max_active_trades": 10,           # 🎯 10 eş zamanlı işlem — fırsatları kaçırma
     "weak_momentum_profit_take_pct": 1.50,  # 🎯 Zayıf sinyalde hızlı çık (%1.5)
