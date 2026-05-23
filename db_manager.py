@@ -44,6 +44,9 @@ class HybridDatabaseManager:
         
         # 🔄 Tek Seferlik Veri Geri Yükleme (seed_restore.json varsa eski verileri birleştir)
         self._apply_seed_restore()
+        
+        # 🔒 Çift pozisyon temizliği: Aynı coinde birden fazla AÇIK trade varsa yeniyi koru, eskiyi iptal et
+        self._cleanup_duplicate_open_trades()
 
     def _cleanup_wrong_coins(self):
         """Bot 2 sadece BTC ve SOL trade eder. Yanlış coinlerin verilerini temizle."""
@@ -135,8 +138,61 @@ class HybridDatabaseManager:
             pass
         return merged
 
+    def _cleanup_duplicate_open_trades(self):
+        """Aynı coinde birden fazla AÇIK trade varsa en yeniyi koru, diğerlerini İPTAL et."""
+        if not os.path.exists(TRADE_FILE):
+            return
+        try:
+            with open(TRADE_FILE, "r", encoding="utf-8") as f:
+                trades = json.load(f)
+            
+            # Coin bazlı AÇIK trade'leri grupla
+            open_by_coin = {}
+            for i, t in enumerate(trades):
+                if t.get("durum") == "AÇIK":
+                    coin = t.get("coin", "")
+                    if coin not in open_by_coin:
+                        open_by_coin[coin] = []
+                    open_by_coin[coin].append(i)
+            
+            changed = False
+            for coin, indices in open_by_coin.items():
+                if len(indices) <= 1:
+                    continue
+                
+                # En yeni trade'i bul (start_timestamp veya tarih bazlı)
+                best_idx = indices[0]
+                best_ts = trades[best_idx].get("start_timestamp", 0)
+                for idx in indices[1:]:
+                    ts = trades[idx].get("start_timestamp", 0)
+                    if ts > best_ts:
+                        best_ts = ts
+                        best_idx = idx
+                
+                # Diğerlerini İPTAL et (PNL sıfırla, durum KAPALI yap)
+                for idx in indices:
+                    if idx != best_idx:
+                        trades[idx]["durum"] = "KAPALI"
+                        trades[idx]["exit_reason"] = "DUPLICATE_CLEANUP (Çift pozisyon temizliği — restart sonrası)"
+                        trades[idx]["pnl_usdt"] = 0.0
+                        trades[idx]["pnl_yuzde"] = 0.0
+                        trades[idx]["cikis_fiyati"] = trades[idx].get("giris_fiyati", 0)
+                        from datetime import datetime, timezone, timedelta
+                        tr_tz = timezone(timedelta(hours=3))
+                        trades[idx]["kapanis_tarihi"] = datetime.now(tr_tz).strftime("%Y-%m-%d %H:%M:%S")
+                        add_log(f"🔒 ÇİFT POZİSYON TEMİZLİĞİ: {coin} — Eski çift trade (ID: {trades[idx].get('id', '?')}) sıfır PNL ile kapatıldı. Yeni trade (ID: {trades[best_idx].get('id', '?')}) korunuyor.")
+                        changed = True
+            
+            if changed:
+                with open(TRADE_FILE, "w", encoding="utf-8") as f:
+                    json.dump(trades, f, indent=4, ensure_ascii=False)
+                add_log("✅ Çift pozisyon temizliği tamamlandı.")
+        except Exception as e:
+            add_log(f"⚠️ Çift pozisyon temizliği hatası: {str(e)}")
+
     def _apply_seed_restore(self):
-        """Tek seferlik veri geri yükleme: seed_restore.json varsa eski verileri mevcut verilerle birleştirir."""
+        """Tek seferlik veri geri yükleme: seed_restore.json varsa eski verileri mevcut verilerle birleştirir.
+        ÖNEMLİ: Seed'den gelen AÇIK trade'ler, lokalde aynı coin'de zaten AÇIK trade varsa eklenmez."""
         SEED_FILE = "seed_restore.json"
         if not os.path.exists(SEED_FILE):
             return
@@ -167,8 +223,27 @@ class HybridDatabaseManager:
                 with open(MEMORY_FILE, "r", encoding="utf-8") as f:
                     local_memory = json.load(f)
             
-            # Trade'leri birleştir (ID bazlı, mevcut _merge_trades kullan)
-            merged_trades = self._merge_trades(local_trades, seed_trades)
+            # 🛡️ Lokalde zaten AÇIK olan coinleri bul
+            local_open_coins = set()
+            for t in local_trades:
+                if t.get("durum") == "AÇIK":
+                    local_open_coins.add(t.get("coin", ""))
+            
+            # Seed trade'lerinden AÇIK olanları filtrele (çakışma varsa ekleme)
+            filtered_seed_trades = []
+            skipped_count = 0
+            for t in seed_trades:
+                if t.get("durum") == "AÇIK" and t.get("coin", "") in local_open_coins:
+                    skipped_count += 1
+                    add_log(f"🔄 SEED: {t.get('coin')} AÇIK trade atlandı — lokalde zaten aktif pozisyon var.")
+                    continue
+                filtered_seed_trades.append(t)
+            
+            if skipped_count > 0:
+                add_log(f"🔄 SEED: {skipped_count} çift AÇIK trade atlandı (lokalde zaten var).")
+            
+            # Trade'leri birleştir (ID bazlı)
+            merged_trades = self._merge_trades(local_trades, filtered_seed_trades)
             
             # Avoided trade'leri birleştir (ID bazlı)
             avoided_map = {}
