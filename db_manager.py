@@ -283,6 +283,10 @@ class HybridDatabaseManager:
             
             add_log(f"✅ SEED RESTORE TAMAMLANDI: {len(merged_trades)} trade, {len(merged_avoided)} avoided, {len(merged_memory)} coin memory birleştirildi.")
             
+            # ☁️ Buluta hemen yükle (Telegram yedeğini kalıcı olarak güncelle)
+            add_log("☁️ SEED RESTORE: Birleştirilen veriler Telegram bulutuna yükleniyor...")
+            self._upload_worker()
+            
         except Exception as e:
             add_log(f"⚠️ SEED RESTORE HATASI: {str(e)}")
             try:
