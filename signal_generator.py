@@ -945,13 +945,34 @@ class SignalGenerator:
                         quality_multiplier *= 1.3
                         add_log(f"⏰ ÖĞLEN SHORT BONUSU: {coin_key} SHORT — Saat {current_hour}:00 tarihsel düşüş saati, kalite x1.3")
                     
+                    # === GECE TEHLİKELİ SAATLER ===
+                    # 01:00-02:00 → LONG çok tehlikeli (%85.7 düşüş son hafta!)
+                    elif current_hour in [1, 2] and direction == "LONG":
+                        quality_multiplier *= 0.3
+                        add_log(f"⏰ GECE DÜŞÜŞ BİASI: {coin_key} LONG — Saat {current_hour}:00 gece düşüş saati (%85 düşüş), kalite x0.3")
+                    
+                    # 23:00-00:00 → LONG riskli (%53-63 düşüş)
+                    elif current_hour in [23, 0] and direction == "LONG":
+                        quality_multiplier *= 0.5
+                        add_log(f"⏰ GECE GEÇ SAAT BİASI: {coin_key} LONG — Saat {current_hour}:00 gece zayıflık, kalite x0.5")
+                    
+                    # 01:00-02:00 → SHORT bonus (düşüş lehine)
+                    elif current_hour in [1, 2] and direction == "SHORT":
+                        quality_multiplier *= 1.3
+                        add_log(f"⏰ GECE SHORT BONUSU: {coin_key} SHORT — Saat {current_hour}:00 gece düşüş saati, kalite x1.3")
+                    
                     # === GÜVENLİ SAATLER ===
-                    # 20:00-23:00 → LONG bonus (ABD aktif, %67-86 yükseliş)
+                    # 20:00-22:00 → LONG bonus (ABD aktif, %67-86 yükseliş)
                     elif current_hour in [20, 21, 22] and direction == "LONG":
                         quality_multiplier *= 1.2
                         add_log(f"⏰ ABD AKTİF BONUSU: {coin_key} LONG — Saat {current_hour}:00 güçlü yükseliş saati, kalite x1.2")
                     
-                    # 06:00-07:00 → LONG bonus (sabah güçlü, BTC %100 yükseliş son 1 hafta!)
+                    # 03:00-04:00 → SHORT bonus (gece trendi devam)
+                    elif current_hour in [3, 4] and direction == "SHORT":
+                        quality_multiplier *= 1.1
+                        add_log(f"⏰ GECE GEÇ SHORT: {coin_key} SHORT — Saat {current_hour}:00 gece trendi devam, kalite x1.1")
+                    
+                    # 06:00-07:00 → LONG bonus (sabah güçlü)
                     elif current_hour in [6, 7] and direction == "LONG":
                         quality_multiplier *= 1.2
                         add_log(f"⏰ SABAH BONUSU: {coin_key} LONG — Saat {current_hour}:00 sabah yükseliş saati, kalite x1.2")
