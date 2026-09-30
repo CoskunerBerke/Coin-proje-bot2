@@ -91,7 +91,7 @@ All are optional; the bot runs in simulation mode without them.
 
 - **Backend:** Render web service, started by the `Procfile` (`web: python app.py`), Python version in `runtime.txt`.
 - **Frontend:** Vercel serves `frontend/index.html` as a static site (`vercel.json`).
-- Step-by-step guide: [DEPLOYMENT.md](DEPLOYMENT.md).
+- Step-by-step Render + UptimeRobot guide (Turkish): [DEPLOYMENT.md](DEPLOYMENT.md).
 
 ## Disclaimer
 
@@ -133,7 +133,7 @@ python app.py                 # API + bot motoru: http://localhost:5000
 streamlit run main.py         # veya yerel panel: http://localhost:8501
 ```
 
-Ortam değişkenleri isteğe bağlıdır; anahtar olmadan bot simülasyon modunda çalışır. Canlıya alma adımları (Render + Vercel) için [DEPLOYMENT.md](DEPLOYMENT.md) dosyasına bakın.
+Ortam değişkenleri isteğe bağlıdır; anahtar olmadan bot simülasyon modunda çalışır. Backend Render'da (`Procfile`), kontrol paneli Vercel'de (`vercel.json`) yayınlanır; Render + UptimeRobot kurulum adımları için [DEPLOYMENT.md](DEPLOYMENT.md) dosyasına bakın.
 
 ### Uyarı
 
