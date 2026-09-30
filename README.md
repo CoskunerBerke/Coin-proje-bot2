@@ -26,11 +26,11 @@ The bot scans selected coins (currently BTC and SOL, configurable in `config.py`
 
 ## Features
 
-- **Technical analysis** — RSI, Stochastic RSI, MACD, EMA 9/21/50/200, Bollinger Bands, ADX, ATR, support/resistance, pivot points and candle patterns.
+- **Technical analysis** — RSI, Stochastic RSI, MACD, EMA 9/21/50/200, Bollinger Bands, ADX, ATR, support/resistance, pivot level and candle body/wick ratio.
 - **Sentiment analysis** — news from CryptoPanic and RSS feeds, scored with VADER, plus the Fear & Greed index.
 - **Weighted long/short signal** — eight factors (EMA crossover, RSI, MACD, sentiment, Bollinger, ADX trend, volume, candle pattern) with market-regime detection and multi-timeframe checks.
-- **Self-adjusting weights** — a small logistic model (NumPy) is retrained from trade history (`update_weights_from_history`).
-- **Simulated trade management** — position sizing by stop distance, leverage cap, partial take-profit, regime-aware trailing stops, daily loss limits.
+- **Self-adjusting weights** — factor weights are re-estimated from closed trades, and a small NumPy logistic-regression meta-filter is retrained on the same history (`update_weights_from_history`).
+- **Simulated trade management** — position sizing by stop distance, fixed 3x leverage in the engine, partial take-profit (TP1/TP2), volatility-aware trailing stops, daily loss limits.
 - **Counterfactual analysis** — tracks skipped signals and closed trades to answer "what if I had entered / held?".
 - **Coin memory and macro sentinel** — per-coin trade history profile; macro risk score from USD/TRY, BTC dominance, stablecoin flows and Fear & Greed.
 - **Long-term spot scanner** — daily-chart checks (EMA breakouts, RSI oversold, accumulation patterns).
@@ -43,7 +43,7 @@ The bot scans selected coins (currently BTC and SOL, configurable in `config.py`
 |---|---|
 | Backend | Python 3.10, Flask, Flask-CORS |
 | Local dashboard | Streamlit, Plotly |
-| Data & analysis | ccxt (Binance), CoinGecko (pycoingecko), pandas, NumPy, `ta`, vaderSentiment, feedparser, BeautifulSoup |
+| Data & analysis | ccxt (Binance), CoinGecko (pycoingecko), pandas, NumPy, `ta`, vaderSentiment, feedparser |
 | Frontend | Single-page HTML, Tailwind CSS (CDN), Font Awesome, TradingView widget |
 | Hosting | Render (`Procfile`), Vercel (`vercel.json`) |
 
@@ -80,7 +80,7 @@ python app.py                 # API + bot engine on http://localhost:5000
 streamlit run main.py         # http://localhost:8501
 ```
 
-Open `frontend/index.html` in a browser; on localhost it talks to `http://localhost:5000`.
+Open `frontend/index.html` and set the API URL field in the panel to `http://localhost:5000` (this is the default when the page itself is served from localhost).
 
 ### Environment variables (names only)
 
@@ -113,11 +113,11 @@ Bot, seçili coinleri (şu an BTC ve SOL; `config.py` içinden değiştirilebili
 
 ### Özellikler
 
-- **Teknik analiz:** RSI, Stochastic RSI, MACD, EMA 9/21/50/200, Bollinger, ADX, ATR, destek/direnç, pivot, mum formasyonları.
+- **Teknik analiz:** RSI, Stochastic RSI, MACD, EMA 9/21/50/200, Bollinger, ADX, ATR, destek/direnç, pivot seviyesi, mum gövde/fitil oranı.
 - **Duygu analizi:** CryptoPanic ve RSS haberleri, VADER puanlaması, Korku & Açgözlülük endeksi.
 - **Ağırlıklı long/short sinyali:** 8 faktör, piyasa rejimi tespiti ve çoklu zaman dilimi kontrolü.
-- **Kendini ayarlayan ağırlıklar:** işlem geçmişinden yeniden eğitilen küçük lojistik model.
-- **Simülasyon işlem yönetimi:** stop mesafesine göre boyut, kaldıraç sınırı, kademeli kâr alma, rejime duyarlı takip stopu, günlük zarar limiti.
+- **Kendini ayarlayan ağırlıklar:** faktör ağırlıkları kapanan işlemlerden yeniden hesaplanır; küçük bir NumPy lojistik regresyon filtresi aynı geçmişle yeniden eğitilir.
+- **Simülasyon işlem yönetimi:** stop mesafesine göre boyut, motorda sabit 3x kaldıraç, kademeli kâr alma (TP1/TP2), volatiliteye duyarlı takip stopu, günlük zarar limiti.
 - **Karşı-olgusal analiz:** "girseydim / tutsaydım ne olurdu?" sorusunu veriyle yanıtlar.
 - **Coin hafızası, makro risk skoru ve uzun vadeli spot tarayıcı.**
 - **REST API + kontrol paneli** ve **Telegram** bildirimleri / veri yedeği.
