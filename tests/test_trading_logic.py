@@ -50,6 +50,51 @@ def test_manual_close_uses_turkey_time_and_correct_pnl(client, app_mod, monkeypa
     assert trade["pnl_usdt"] == pytest.approx(14.96)
 
 
+class _FakeExecutor:
+    def __init__(self, trades, balance=1000.0):
+        self._trades = trades
+        self._balance = balance
+
+    def get_trade_history(self):
+        return self._trades
+
+    def get_balance(self):
+        return self._balance
+
+
+def _closed(pnl, seconds_ago):
+    closed_at = datetime.now(TR_TZ) - timedelta(seconds=seconds_ago)
+    return {"coin": "BTC", "durum": "KAPALI", "pnl_usdt": pnl,
+            "kapanis_tarihi": closed_at.strftime("%Y-%m-%d %H:%M:%S")}
+
+
+def test_daily_loss_guard_counts_closed_trades():
+    # Three losing trades closed today (as written by trade_executor: durum=KAPALI, kapanis_tarihi).
+    trades = [_closed(-1.0, 3), _closed(-1.0, 2), _closed(-1.0, 1)]
+    if any(t["kapanis_tarihi"][:10] != datetime.now(TR_TZ).strftime("%Y-%m-%d") for t in trades):
+        pytest.skip("ran across midnight (Turkey time)")
+    stats = bot_engine.get_daily_loss_stats(_FakeExecutor(trades))
+    assert stats["closed_today"] == 3
+    assert stats["consecutive_losses"] == 3
+    assert stats["is_banned"] is True
+
+
+def test_daily_loss_guard_bans_on_daily_loss_percentage():
+    trades = [_closed(-40.0, 1)]  # -4 % of a 1,000 USDT balance, limit is -3 %
+    stats = bot_engine.get_daily_loss_stats(_FakeExecutor(trades))
+    assert stats["daily_pnl_pct"] == pytest.approx(-4.0)
+    assert stats["is_banned"] is True
+
+
+def test_daily_loss_guard_ignores_open_and_old_trades():
+    old = _closed(-50.0, 0)
+    old["kapanis_tarihi"] = "2000-01-01 12:00:00"
+    trades = [old, _open_trade(), _closed(5.0, 1)]
+    stats = bot_engine.get_daily_loss_stats(_FakeExecutor(trades))
+    assert stats["is_banned"] is False
+    assert stats["consecutive_losses"] == 0
+
+
 def test_sync_credentials_fall_back_when_env_vars_are_blank(workdir, monkeypatch):
     # .env.example ships "TELEGRAM_DATA_CHAT_ID=" (blank) and documents a fallback to TELEGRAM_CHAT_ID.
     monkeypatch.setenv("TELEGRAM_TOKEN", "")

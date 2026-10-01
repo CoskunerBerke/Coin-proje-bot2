@@ -64,62 +64,63 @@ def sanitize_nan(data):
     return data
 
 
+# 🏦 Günlük Ardışık Zarar ve Toplam Kayıp Takipçisi (Institutional Daily Risk Guard)
+def get_daily_loss_stats(trade_executor):
+    """Bugün kapanan işlemleri analiz eder: ardışık zarar sayısı ve toplam günlük PNL döndürür."""
+    try:
+        history = trade_executor.get_trade_history()
+        today_str = datetime.now(tr_tz).strftime("%Y-%m-%d")
+        starting_balance = trade_executor.get_balance()
+        
+        # Bugün kapanan işlemleri filtrele
+        today_closed = []
+        for t in history:
+            if t.get("durum") == "KAPALI":
+                close_time = t.get("kapanis_tarihi", "")
+                if today_str in str(close_time):
+                    today_closed.append(t)
+        
+        if not today_closed:
+            return {"consecutive_losses": 0, "daily_pnl_pct": 0.0, "is_banned": False}
+        
+        # Kapanış zamanına göre sırala (en son kapanan en sonda)
+        today_closed.sort(key=lambda x: str(x.get("kapanis_tarihi", "")))
+        
+        # Ardışık zarar sayısını hesapla (sondan başa doğru)
+        consecutive_losses = 0
+        for t in reversed(today_closed):
+            pnl = float(t.get("pnl_usdt", 0))
+            if pnl < 0:
+                consecutive_losses += 1
+            else:
+                break  # İlk kârlı işlemde dur
+        
+        # Toplam günlük PNL yüzdesi
+        total_daily_pnl = sum(float(t.get("pnl_usdt", 0)) for t in today_closed)
+        daily_pnl_pct = (total_daily_pnl / max(starting_balance, 1.0)) * 100
+        
+        # Ban kontrolü
+        max_consecutive = INSTITUTIONAL_THRESHOLDS["max_daily_consecutive_losses"]
+        max_daily_loss = INSTITUTIONAL_THRESHOLDS["max_daily_loss_pct"]
+        is_banned = consecutive_losses >= max_consecutive or daily_pnl_pct <= -max_daily_loss
+        
+        return {
+            "consecutive_losses": consecutive_losses,
+            "daily_pnl_pct": round(daily_pnl_pct, 2),
+            "is_banned": is_banned,
+            "total_daily_pnl": round(total_daily_pnl, 2),
+            "closed_today": len(today_closed)
+        }
+    except Exception as e:
+        add_log(f"⚠️ Günlük zarar takip hatası: {str(e)}")
+        return {"consecutive_losses": 0, "daily_pnl_pct": 0.0, "is_banned": False}
+
+
 def run_engine():
     """Botun 24/7 çalışacak kesintisiz arka plan iş parçacığı."""
     add_log("⏳ Render OOM Koruması: Sunucu başlangıç aşamasında bot motoru 30 saniye bekletiliyor...")
     time.sleep(30)
     add_log("🚀 Kripto Bot Arka Plan Motoru Başlatıldı!")
-    
-    # 🏦 Günlük Ardışık Zarar ve Toplam Kayıp Takipçisi (Institutional Daily Risk Guard)
-    def get_daily_loss_stats(trade_executor):
-        """Bugün kapanan işlemleri analiz eder: ardışık zarar sayısı ve toplam günlük PNL döndürür."""
-        try:
-            history = trade_executor.get_trade_history()
-            today_str = datetime.now(tr_tz).strftime("%Y-%m-%d")
-            starting_balance = trade_executor.get_balance()
-            
-            # Bugün kapanan işlemleri filtrele
-            today_closed = []
-            for t in history:
-                if t.get("durum") == "KAPANDI":
-                    close_time = t.get("kapanis_zamani", "")
-                    if today_str in str(close_time):
-                        today_closed.append(t)
-            
-            if not today_closed:
-                return {"consecutive_losses": 0, "daily_pnl_pct": 0.0, "is_banned": False}
-            
-            # Kapanış zamanına göre sırala (en son kapanan en sonda)
-            today_closed.sort(key=lambda x: str(x.get("kapanis_zamani", "")))
-            
-            # Ardışık zarar sayısını hesapla (sondan başa doğru)
-            consecutive_losses = 0
-            for t in reversed(today_closed):
-                pnl = float(t.get("pnl_usdt", 0))
-                if pnl < 0:
-                    consecutive_losses += 1
-                else:
-                    break  # İlk kârlı işlemde dur
-            
-            # Toplam günlük PNL yüzdesi
-            total_daily_pnl = sum(float(t.get("pnl_usdt", 0)) for t in today_closed)
-            daily_pnl_pct = (total_daily_pnl / max(starting_balance, 1.0)) * 100
-            
-            # Ban kontrolü
-            max_consecutive = INSTITUTIONAL_THRESHOLDS["max_daily_consecutive_losses"]
-            max_daily_loss = INSTITUTIONAL_THRESHOLDS["max_daily_loss_pct"]
-            is_banned = consecutive_losses >= max_consecutive or daily_pnl_pct <= -max_daily_loss
-            
-            return {
-                "consecutive_losses": consecutive_losses,
-                "daily_pnl_pct": round(daily_pnl_pct, 2),
-                "is_banned": is_banned,
-                "total_daily_pnl": round(total_daily_pnl, 2),
-                "closed_today": len(today_closed)
-            }
-        except Exception as e:
-            add_log(f"⚠️ Günlük zarar takip hatası: {str(e)}")
-            return {"consecutive_losses": 0, "daily_pnl_pct": 0.0, "is_banned": False}
     
     # Modülleri ilklendir
     fetcher = DataFetcher()
