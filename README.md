@@ -30,7 +30,7 @@ A Python bot that scores BTC and SOL setups from technical indicators, news sent
 
 ## Overview
 
-The engine scans the coins in `ACTIVE_COINS` (BTC and SOL, see `config.py`) on one timeframe (default 1h, with 1h, 4h and 1d trend checks), scores each setup, applies risk filters and opens virtual positions sized as a share of the virtual balance. Every closed trade is added to a per-coin memory, and a small logistic-regression meta-filter is retrained from the closed-trade history. The ideas were rebuilt later, with a much stricter paper-trading and measurement approach, in trading2. A Flask app exposes the data as a REST API and starts the engine in a background thread; a static HTML panel (Tailwind) reads that API. An optional local Streamlit dashboard (`main.py`) uses the same modules directly. This repository is the "BOT2_AGGRESSIVE" profile: that bot identifier turns on the macro filter and tags the Telegram backups.
+The engine scans the coins in `ACTIVE_COINS` (BTC and SOL, see `config.py`) on one timeframe (default 1h, with 1h, 4h and 1d trend checks), scores each setup, applies risk filters and opens virtual positions sized as a share of the virtual balance. Trades closed by the exit rules or the invalidation guard are added to a per-coin memory (manual closes are not), and a small logistic-regression meta-filter is retrained from the closed trades in the trade file. The ideas were rebuilt later, with a much stricter paper-trading and measurement approach, in trading2. A Flask app exposes the data as a REST API and starts the engine in a background thread; a static HTML panel (Tailwind) reads that API. An optional local Streamlit dashboard (`main.py`) uses the same modules directly. This repository is the "BOT2_AGGRESSIVE" profile: that bot identifier turns on the macro filter and tags the Telegram backups.
 
 ## Features
 
@@ -51,9 +51,9 @@ One process runs the Flask API and a background engine thread. While the bot is 
 
 1. **Fetch**: candles, ticker, funding, open interest and spread for BTC and SOL from Binance futures (ccxt, cached), plus CoinGecko data, news sentiment and a macro risk level.
 2. **Vote**: eight indicator rules vote long or short, weighted by market regime and a per-coin weight table; a sum above +0.03 or below −0.03 sets the direction.
-3. **Score**: confidence is a sigmoid of vote strength, regime and timeframe agreement, funding, open interest and disagreement between the rules; the stop and target are ATR multiples, a 10,000-path Monte Carlo gives a survival rate, and an expected value is computed in R.
-4. **Filter**: hard rejects (wick trap, BTC trend against the trade, crowded funding, open-interest spike, low volume, negative EV, low survival, wide spread) are final; a confidence or meta-filter rejection above 70 % of its threshold is relaxed so the bot keeps collecting trades to learn from.
-5. **Simulate**: a tradable signal opens a 3x position on the virtual balance. Every 10 seconds open positions are checked for TP1, trailing stop, stop-loss, take-profit and the other exits, and closed trades feed the coin memory and the meta-filter.
+3. **Score**: confidence is a sigmoid of vote strength, regime and timeframe agreement, funding, open interest and disagreement between the rules; the stop and target are ATR multiples, a 10,000-path Monte Carlo gives a survival rate, and an expected value is computed in ATR multiples.
+4. **Filter**: hard rejects (wick trap, BTC trend against the trade, crowded funding, open-interest spike, low volume, EV at or below −0.10, low survival, wide spread) are final; a confidence or meta-filter rejection above 70 % of its threshold is relaxed so the bot keeps collecting trades to learn from.
+5. **Simulate**: a tradable signal opens a 3x position on the virtual balance. Every 10 seconds open positions are checked for TP1, trailing stop, stop-loss, take-profit and the other exits, trades closed by these rules feed the coin memory, and the closed trades in the trade file train the meta-filter.
 
 The panel reads the public GET routes; every change needs the `X-Admin-Token` header. The full walkthrough, with diagrams, formulas, the data model, the security model and the known gaps, is in **[docs/HOW_IT_WORKS.md](docs/HOW_IT_WORKS.md)**.
 
@@ -208,7 +208,7 @@ python -m pytest
 - Retired predecessor of trading2: kept working and tested, not developed further.
 - Storage is plain JSON files plus a Telegram backup, not a database.
 - `/api/danger-reset-db` imports `scratch.archive_and_reset_data`, a local helper that is not in this repository, so the endpoint returns 500 even with a valid admin token.
-- On every fresh start (for example a Render redeploy) closed trades are moved out of `bot_trades.json` into an archive file; the per-coin learning memory is kept.
+- On every fresh start (for example a Render redeploy) closed trades are moved out of `bot_trades.json` into an archive file; the per-coin learning memory is kept. Until a trade closes again, the virtual balance falls back to the PnL stored in that memory ([details](docs/HOW_IT_WORKS.md#41-the-simulated-balance)), so it can jump at the next close.
 - Reading the code for [docs/HOW_IT_WORKS.md](docs/HOW_IT_WORKS.md#8-limitations-known-gaps-and-next-steps) turned up unreachable filter branches and a few bugs (for example, the structure exit shadows the time exits, so a long with a support level or a short with a resistance level never reaches the time limits). They are listed there and left as they are.
 
 ## Disclaimer
@@ -231,7 +231,7 @@ Ekran görüntüleri sayfanın başındadır. Hepsi çevrimdışı demodan (`scr
 
 ### Genel bakış
 
-Motor, `ACTIVE_COINS` içindeki coinleri (BTC ve SOL, `config.py`) tek bir zaman diliminde (varsayılan 1h; 1h, 4h ve 1d trend kontrolleriyle) tarar, her kurulumu puanlar, risk filtrelerini uygular ve sanal bakiyenin bir payı kadar sanal pozisyon açar. Kapanan her işlem coin bazlı hafızaya eklenir ve küçük bir lojistik regresyon meta-filtresi kapanan işlem geçmişiyle yeniden eğitilir. Fikirler daha sonra çok daha sıkı bir kâğıt işlem ve ölçüm yaklaşımıyla trading2'de yeniden yazıldı. Flask uygulaması verileri REST API olarak sunar ve motoru arka plan iş parçacığında başlatır; statik HTML paneli (Tailwind) bu API'yi okur. İsteğe bağlı yerel Streamlit paneli (`main.py`) aynı modülleri doğrudan kullanır. Bu depo "BOT2_AGGRESSIVE" profilidir: bu bot kimliği makro filtreyi açar ve Telegram yedeklerini etiketler.
+Motor, `ACTIVE_COINS` içindeki coinleri (BTC ve SOL, `config.py`) tek bir zaman diliminde (varsayılan 1h; 1h, 4h ve 1d trend kontrolleriyle) tarar, her kurulumu puanlar, risk filtrelerini uygular ve sanal bakiyenin bir payı kadar sanal pozisyon açar. Çıkış kurallarıyla veya sinyal bozulma kalkanıyla kapanan işlemler coin bazlı hafızaya eklenir (manuel kapatmalar eklenmez); küçük bir lojistik regresyon meta-filtresi de işlem dosyasındaki kapalı işlemlerle yeniden eğitilir. Fikirler daha sonra çok daha sıkı bir kâğıt işlem ve ölçüm yaklaşımıyla trading2'de yeniden yazıldı. Flask uygulaması verileri REST API olarak sunar ve motoru arka plan iş parçacığında başlatır; statik HTML paneli (Tailwind) bu API'yi okur. İsteğe bağlı yerel Streamlit paneli (`main.py`) aynı modülleri doğrudan kullanır. Bu depo "BOT2_AGGRESSIVE" profilidir: bu bot kimliği makro filtreyi açar ve Telegram yedeklerini etiketler.
 
 ### Özellikler
 
@@ -252,9 +252,9 @@ Tek bir süreç Flask API'yi ve arka plandaki motor iş parçacığını çalı�
 
 1. **Veri:** Binance vadeli piyasasından (ccxt, önbellekli) BTC ve SOL için mumlar, ticker, funding, açık pozisyon ve spread; ayrıca CoinGecko verisi, haber duygusu ve makro risk seviyesi.
 2. **Oy:** sekiz gösterge kuralı long veya short oy verir; oylar piyasa rejimi ve coin bazlı ağırlık tablosuyla ağırlıklandırılır. Toplam +0,03'ün üstündeyse long, −0,03'ün altındaysa short.
-3. **Puan:** güven; oy gücü, rejim ve zaman dilimi uyumu, funding, açık pozisyon ve kurallar arası uyumsuzluktan sigmoid ile hesaplanır. Stop ve hedef ATR katlarıdır; 10.000 yollu Monte Carlo sağkalım oranını, ayrıca R cinsinden beklenen değer hesaplanır.
-4. **Filtre:** sert redler (fitil tuzağı, BTC trendinin ters olması, kalabalık funding, açık pozisyon sıçraması, düşük hacim, negatif EV, düşük sağkalım, geniş spread) kesindir; eşiğinin %70'ini geçen güven veya meta-filtre redleri, bot öğrenmek için işlem toplamaya devam etsin diye esnetilir.
-5. **Simülasyon:** işleme uygun sinyal sanal bakiyede 3x pozisyon açar. Açık pozisyonlar 10 saniyede bir TP1, takip stopu, stop, hedef ve diğer çıkışlar için kontrol edilir; kapanan işlemler coin hafızasını ve meta-filtreyi besler.
+3. **Puan:** güven; oy gücü, rejim ve zaman dilimi uyumu, funding, açık pozisyon ve kurallar arası uyumsuzluktan sigmoid ile hesaplanır. Stop ve hedef ATR katlarıdır; 10.000 yollu Monte Carlo sağkalım oranını, ayrıca ATR katı cinsinden beklenen değer hesaplanır.
+4. **Filtre:** sert redler (fitil tuzağı, BTC trendinin ters olması, kalabalık funding, açık pozisyon sıçraması, düşük hacim, −0,10 veya altında EV, düşük sağkalım, geniş spread) kesindir; eşiğinin %70'ini geçen güven veya meta-filtre redleri, bot öğrenmek için işlem toplamaya devam etsin diye esnetilir.
+5. **Simülasyon:** işleme uygun sinyal sanal bakiyede 3x pozisyon açar. Açık pozisyonlar 10 saniyede bir TP1, takip stopu, stop, hedef ve diğer çıkışlar için kontrol edilir; bu kurallarla kapanan işlemler coin hafızasını, işlem dosyasındaki kapalı işlemler de meta-filtreyi besler.
 
 Panel herkese açık GET uç noktalarını okur; her değişiklik `X-Admin-Token` başlığı ister. Diyagramlar, formüller, veri modeli, güvenlik modeli ve bilinen eksiklerle tam anlatım (İngilizce, sonunda Türkçe özetiyle): **[docs/HOW_IT_WORKS.md](docs/HOW_IT_WORKS.md)**.
 
@@ -409,7 +409,7 @@ python -m pytest
 - trading2'nin emekliye ayrılmış öncülü: çalışır ve testli tutuluyor, geliştirilmiyor.
 - Depolama veritabanı değil, JSON dosyaları ve Telegram yedeğidir.
 - `/api/danger-reset-db`, bu depoda bulunmayan yerel `scratch.archive_and_reset_data` yardımcı modülünü içe aktarır; bu yüzden geçerli anahtarla bile 500 döner.
-- Her temiz açılışta (ör. Render'da yeniden dağıtım) kapalı işlemler `bot_trades.json` dosyasından bir arşiv dosyasına taşınır; coin bazlı öğrenme hafızası korunur.
+- Her temiz açılışta (ör. Render'da yeniden dağıtım) kapalı işlemler `bot_trades.json` dosyasından bir arşiv dosyasına taşınır; coin bazlı öğrenme hafızası korunur. Yeniden bir işlem kapanana kadar sanal bakiye bu hafızadaki PnL'ye dayanır ([ayrıntı](docs/HOW_IT_WORKS.md#41-the-simulated-balance)); bu yüzden bir sonraki kapanışta sıçrayabilir.
 - [docs/HOW_IT_WORKS.md](docs/HOW_IT_WORKS.md#8-limitations-known-gaps-and-next-steps) için kod okunurken hiç çalışmayan filtre dalları ve birkaç hata bulundu (ör. yapısal çıkış zamana bağlı çıkışları gölgeliyor; destek seviyesi olan bir long veya direnç seviyesi olan bir short zaman sınırlarına hiç takılmıyor). Orada listelendiler, kod değiştirilmedi.
 
 ### Uyarı
