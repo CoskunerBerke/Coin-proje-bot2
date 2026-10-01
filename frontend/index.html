@@ -1822,7 +1822,7 @@
                 
                 btn.innerHTML = `
                     <span class="text-sm mb-0.5">${iconHtml}</span>
-                    <span class="text-[10px] tracking-wider uppercase font-extrabold">${coin}</span>
+                    <span class="text-[10px] tracking-wider uppercase font-extrabold">${escapeHtml(String(coin))}</span>
                 `;
                 listContainer.appendChild(btn);
             });

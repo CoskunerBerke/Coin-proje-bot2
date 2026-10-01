@@ -113,3 +113,28 @@ def test_cors_default_is_same_origin_only(app_mod):
     assert app_mod.configure_cors(bare, "") == []
     res = bare.test_client().get("/", headers={"Origin": "https://evil.example"})
     assert res.headers.get("Access-Control-Allow-Origin") is None
+
+
+@pytest.mark.parametrize("coin", ["<img src=x onerror=alert(1)>", "BTC USDT", "A", "X" * 16, "BTC%2F..%2F"])
+def test_analysis_rejects_malformed_coin_and_does_not_register_it(client, app_mod, coin):
+    before = set(app_mod.SUPPORTED_COINS)
+    res = client.get(f"/api/analysis/{coin}/15m")
+    assert res.status_code in (400, 404)
+    assert set(app_mod.SUPPORTED_COINS) == before
+
+
+def test_analysis_rejects_unknown_timeframe(client):
+    assert client.get("/api/analysis/BTC/7x").status_code == 400
+
+
+def test_analysis_does_not_register_coin_when_exchange_lookup_fails(client, app_mod, monkeypatch):
+    def offline(*args, **kwargs):
+        raise RuntimeError("offline")
+
+    monkeypatch.setattr(app_mod.fetcher, "fetch_ticker", offline)
+    monkeypatch.setattr(app_mod.fetcher, "fetch_coin_info", offline)
+    monkeypatch.setattr(app_mod.fetcher, "fetch_ohlcv", offline)
+    res = client.get("/api/analysis/NOTACOIN1/15m")
+    assert res.status_code == 200
+    assert "NOTACOIN1" not in app_mod.SUPPORTED_COINS
+    assert "NOTACOIN1" not in client.get("/").get_json()["supported_coins"]

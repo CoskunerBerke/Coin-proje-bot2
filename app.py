@@ -7,6 +7,7 @@ from flask_cors import CORS
 from functools import wraps
 import hmac
 import os
+import re
 import json
 import threading
 import time
@@ -612,21 +613,31 @@ def danger_reset_db():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
+COIN_SYMBOL_RE = re.compile(r"^[A-Z0-9]{2,15}$")
+ALLOWED_TIMEFRAMES = {"1m", "5m", "15m", "30m", "1h", "4h", "1d"}
+
+
 @app.route("/api/analysis/<coin>/<timeframe>", methods=["GET"])
 def get_coin_analysis(coin, timeframe):
     try:
         clean_coin = coin.strip().upper()
-        if clean_coin not in SUPPORTED_COINS:
-            # Dynamically register custom coin in-memory to support on-the-fly analysis!
-            SUPPORTED_COINS[clean_coin] = {
-                "name": clean_coin,
-                "coingecko_id": clean_coin.lower(),
-                "symbol": f"{clean_coin}/USDT"
-            }
-            
+        # 🛡️ Sadece sade sembollere izin ver (ör: BTC, FLOKI) — HTML/URL enjeksiyonunu engeller
+        if not COIN_SYMBOL_RE.match(clean_coin):
+            return jsonify({"status": "error", "message": "Geçersiz coin sembolü (2-15 harf/rakam)."}), 400
+        if timeframe not in ALLOWED_TIMEFRAMES:
+            return jsonify({"status": "error", "message": "Geçersiz zaman dilimi."}), 400
+        coin = clean_coin
+
         # Canlı fiyat ve market bilgilerini çek (Her zaman taze!)
         try:
             ticker = fetcher.fetch_ticker(coin)
+            if clean_coin not in SUPPORTED_COINS:
+                # Özel coin sadece borsada gerçekten bulunduysa listeye eklenir
+                SUPPORTED_COINS[clean_coin] = {
+                    "name": clean_coin,
+                    "coingecko_id": clean_coin.lower(),
+                    "symbol": f"{clean_coin}/USDT"
+                }
             coin_info = fetcher.fetch_coin_info(coin)
         except Exception as ticker_err:
             add_log(f"⚠️ Market Bilgisi Çekilemedi ({coin}): {str(ticker_err)}")
