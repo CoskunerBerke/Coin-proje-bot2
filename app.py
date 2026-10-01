@@ -12,6 +12,7 @@ import json
 import threading
 import time
 import gc
+from datetime import datetime, timezone, timedelta
 from bot_engine import run_engine
 from config import SUPPORTED_COINS, load_app_settings, save_app_settings
 from log_manager import add_log
@@ -23,6 +24,9 @@ from sentiment_analysis import SentimentAnalyzer
 from signal_generator import SignalGenerator
 
 app = Flask(__name__)
+
+# Türkiye saati (UTC+3) — diğer modüllerdeki tarih alanlarıyla aynı
+tr_tz = timezone(timedelta(hours=3))
 
 
 def parse_cors_origins(raw):
@@ -538,7 +542,8 @@ def close_trade_manually(trade_id):
                     
                 t["durum"] = "KAPALI"
                 t["cikis_fiyati"] = current_price
-                t["kapanis_tarihi"] = time.strftime("%Y-%m-%d %H:%M:%S")
+                # Diğer tüm kayıtlar gibi Türkiye saati (sunucu UTC olsa bile)
+                t["kapanis_tarihi"] = datetime.now(tr_tz).strftime("%Y-%m-%d %H:%M:%S")
                 t["exit_reason"] = "MANUEL_KAPATMA (Kullanıcı Talebi)"
                 
                 # Re-calculate final PNL

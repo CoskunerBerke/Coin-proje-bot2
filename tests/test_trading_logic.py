@@ -30,6 +30,26 @@ def utc_server(monkeypatch):
     time.tzset()
 
 
+def test_manual_close_uses_turkey_time_and_correct_pnl(client, app_mod, monkeypatch, workdir, utc_server):
+    monkeypatch.setenv("ADMIN_TOKEN", ADMIN)
+    (workdir / "bot_trades.json").write_text(json.dumps([_open_trade()]), encoding="utf-8")
+    monkeypatch.setattr(app_mod.fetcher, "fetch_ticker", lambda coin: {"last": 110.0})
+
+    res = client.post("/api/close-trade/t-1", headers={"X-Admin-Token": ADMIN})
+    assert res.status_code == 200
+
+    trade = json.loads((workdir / "bot_trades.json").read_text(encoding="utf-8"))[0]
+    assert trade["durum"] == "KAPALI"
+    assert trade["cikis_fiyati"] == 110.0
+    closed_at = datetime.strptime(trade["kapanis_tarihi"], "%Y-%m-%d %H:%M:%S")
+    now_tr = datetime.now(TR_TZ).replace(tzinfo=None)
+    # Every other timestamp in the trade store is Turkey time (UTC+3), even on a UTC host.
+    assert abs((now_tr - closed_at).total_seconds()) < 120
+    # +10 % move x3 leverage = +30 %, minus 2 x 0.04 % commission
+    assert trade["pnl_yuzde"] == pytest.approx(29.92)
+    assert trade["pnl_usdt"] == pytest.approx(14.96)
+
+
 def test_danger_reset_skips_telegram_when_chat_is_unset(client, app_mod, monkeypatch):
     """No hard-coded chat IDs: with no Telegram configuration nothing is sent."""
     import sys
