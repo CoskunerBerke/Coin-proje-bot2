@@ -832,7 +832,7 @@
             }`;
             toast.innerHTML = `
                 <span class="text-sm">${type === "success" ? "✨" : "⚠️"}</span>
-                <span>${message}</span>
+                <span>${escapeHtml(String(message))}</span>
             `;
             container.appendChild(toast);
             
@@ -1052,12 +1052,12 @@
         }
 
         // Handle Dropdown changes
-        function changeSelectedCoin(val) {
+        function changeSelectedCoin(val, prefetchedAnalysis = null) {
             selectedCoin = val;
             document.getElementById("dna-section-title").textContent = `🧬 ${val} DNA Davranış Profili`;
             document.getElementById("analysis-coin-title").textContent = `🪙 ${val} Analizi`;
             
-            fetchAnalysis();
+            fetchAnalysis(prefetchedAnalysis);
         }
 
         function changeSelectedTimeframe(val) {
@@ -1066,11 +1066,14 @@
         }
 
         // Fetch Analysis Details for Selected Coin
-        async function fetchAnalysis() {
+        async function fetchAnalysis(prefetched = null) {
             try {
-                const res = await fetch(`${apiBase}/api/analysis/${selectedCoin}/${selectedTimeframe}`);
-                if (!res.ok) throw new Error("Analysis load failed");
-                const data = await res.json();
+                let data = prefetched;
+                if (!data) {
+                    const res = await fetch(`${apiBase}/api/analysis/${selectedCoin}/${selectedTimeframe}`);
+                    if (!res.ok) throw new Error("Analysis load failed");
+                    data = await res.json();
+                }
                 
                 if (data.status === "success") {
                     // Populate premium header cards (Streamlit UI match)
@@ -1854,13 +1857,27 @@
             renderCoinSidebar();
         }
 
-        function analyzeCustomCoin() {
+        async function analyzeCustomCoin() {
             const inputEl = document.getElementById("custom-coin-input");
             if (!inputEl) return;
             const val = inputEl.value.trim().toUpperCase();
             if (!val) return;
-            
-            // Check if coin key is already supported
+
+            // Önce backend doğrulasın: geçersiz/bilinmeyen sembol kenar çubuğuna eklenmez, hata bildirimi gösterilir
+            let analysis = null;
+            try {
+                const res = await fetch(`${apiBase}/api/analysis/${encodeURIComponent(val)}/${selectedTimeframe}`);
+                analysis = await res.json().catch(() => ({}));
+                if (!res.ok || analysis.status !== "success") {
+                    showNotification(`${val}: ` + (analysis.message || `analiz başarısız (HTTP ${res.status})`), "error");
+                    return;
+                }
+            } catch (err) {
+                showNotification("Sunucu Bağlantı Hatası!", "error");
+                return;
+            }
+
+            // Sadece bu tarayıcının listesine eklenir (sunucudaki ortak coin listesi değişmez)
             if (!backendCoins.includes(val)) {
                 backendCoins.push(val);
                 
@@ -1879,7 +1896,7 @@
                 selectEl.value = val;
             }
             
-            changeSelectedCoin(val);
+            changeSelectedCoin(val, analysis);
             renderCoinSidebar();
             inputEl.value = ""; // Clear input
         }
