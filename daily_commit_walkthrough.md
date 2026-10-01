@@ -10,7 +10,7 @@ Bu dosya, bugün yapılan 3 ana commitin detaylı Türkçe özetini, teknik walk
 **Başlık:** *Optimize risk-to-reward ratio and fix take profit bug in trade executor*
 
 *   **Etkilenen Dosya:**
-    *   [trade_executor.py](file:///c:/Users/berke/OneDrive/Masaüstü/COİN_PROJE/trade_executor.py) (+42 satır, -27 satır)
+    *   [trade_executor.py](trade_executor.py) (+42 satır, -27 satır)
 *   **Açıklama:**
     *   Sistemdeki Take Profit (TP - Kâr Al) bariyeri mantığındaki hesaplama hataları giderildi.
     *   Kademeli kâr alım (PTP - Partial Take Profit) mekanizmasındaki matematiksel bug'lar çözülerek **risk/ödül oranları (R:R)** optimize edildi. İşlemlerin risk bütçesine göre daha sağlıklı R-Multiple vermesi sağlandı.
@@ -21,10 +21,10 @@ Bu dosya, bugün yapılan 3 ana commitin detaylı Türkçe özetini, teknik walk
 **Başlık:** *Optimize bot engine and trade execution logic: volatility parity sizing, structure exits, regime adjusted trailing stops, and MTF data validation*
 
 *   **Etkilenen Dosyalar:**
-    *   [technical_analysis.py](file:///c:/Users/berke/OneDrive/Masaüstü/COİN_PROJE/technical_analysis.py) (+85 satır, -15 satır)
-    *   [signal_generator.py](file:///c:/Users/berke/OneDrive/Masaüstü/COİN_PROJE/signal_generator.py) (+242 satır, -148 satır)
-    *   [trade_executor.py](file:///c:/Users/berke/OneDrive/Masaüstü/COİN_PROJE/trade_executor.py) (+86 satır, -48 satır)
-    *   [bot_engine.py](file:///c:/Users/berke/OneDrive/Masaüstü/COİN_PROJE/bot_engine.py) (+19 satır, -4 satır)
+    *   [technical_analysis.py](technical_analysis.py) (+85 satır, -15 satır)
+    *   [signal_generator.py](signal_generator.py) (+242 satır, -148 satır)
+    *   [trade_executor.py](trade_executor.py) (+86 satır, -48 satır)
+    *   [bot_engine.py](bot_engine.py) (+19 satır, -4 satır)
 *   **Açıklama:**
     *   **Market Rejimi Tespiti:** Volatilite yüzdeleri, Bollinger Band genişliği, ADX gücü ve hacim genişlemesi kullanılarak rejim sınıflandırması (`COMPRESSION`, `VOLATILITY_EXPANSION`, `TRENDING_BULL`, `TRENDING_BEAR`, `RANGE`) yapıldı.
     *   **Çoklu Zaman Dilimi (MTF) Doğrulaması:** Sinyaller 1H yapısal ve 4H makro trend pencereleri üzerinden hiyerarşik filtrelemeye tabi tutuldu.
@@ -38,10 +38,10 @@ Bu dosya, bugün yapılan 3 ana commitin detaylı Türkçe özetini, teknik walk
 **Başlık:** *Optimize ML meta-labeling target, weights attribution, and add git diff tracking*
 
 *   **Etkilenen Dosyalar:**
-    *   [app.py](file:///c:/Users/berke/OneDrive/Masaüstü/COİN_PROJE/app.py) (+79 satır)
-    *   [signal_generator.py](file:///c:/Users/berke/OneDrive/Masaüstü/COİN_PROJE/signal_generator.py) (+165 satır, -42 satır)
-    *   [trade_executor.py](file:///c:/Users/berke/OneDrive/Masaüstü/COİN_PROJE/trade_executor.py) (+13 satır, -1 satır)
-    *   [.gitignore](file:///c:/Users/berke/OneDrive/Masaüstü/COİN_PROJE/.gitignore) (+1 satır)
+    *   [app.py](app.py) (+79 satır)
+    *   [signal_generator.py](signal_generator.py) (+165 satır, -42 satır)
+    *   [trade_executor.py](trade_executor.py) (+13 satır, -1 satır)
+    *   [.gitignore](.gitignore) (+1 satır)
 *   **Açıklama:**
     *   **Git Değişim Yüzdesi Takibi (Git Diff Tracking):** Sunucu her başladığında son iki commit arasındaki farkı `git diff --shortstat` ile çekerek kod tabanındaki yüzdelik değişimi hesaplayan ve bunu `/api/git-diffs` API rotasından sunan mekanizma eklendi.
     *   **Çok Pencereli Bellek (Multi-Window Weighting):** İndikatör ağırlık optimizasyonu son 50 (kısa vadeli - %50 ağırlık), son 200 (orta vadeli - %30 ağırlık) ve son 1000 (uzun vadeli - %20 ağırlık) işlemlik pencerelerden beslenen karma yapıya geçirildi.
