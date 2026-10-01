@@ -33,7 +33,7 @@ The engine scans the coins in `ACTIVE_COINS` (BTC and SOL, see `config.py`) on s
 
 ## Features
 
-- **Technical analysis**: RSI, Stochastic RSI, MACD, EMA 9/21/50/200, Bollinger Bands, ADX, ATR, support/resistance, pivot level, candle body/wick ratio, multi-timeframe alignment and market-regime detection.
+- **Technical analysis**: RSI, MACD, EMA 9/21/50/200, Bollinger Bands, ADX, ATR, support/resistance, pivot level, candle body/wick ratio, multi-timeframe alignment and market-regime detection.
 - **Sentiment analysis**: RSS feeds (and CryptoPanic when a key is set), scored with VADER, plus the Fear & Greed index.
 - **Weighted long/short signal**: eight factors (EMA crossover, RSI, MACD, sentiment, Bollinger, ADX trend, volume, candle pattern); hard and soft reject reasons are shown in the panel.
 - **Self-adjusting weights**: factor weights are re-estimated from closed trades over 50/200/1000-trade windows, and a NumPy logistic-regression meta-filter is retrained on the same history (`update_weights_from_history`).
@@ -219,7 +219,7 @@ Motor, `ACTIVE_COINS` içindeki coinleri (BTC ve SOL, `config.py`) kısa zaman d
 
 ### Özellikler
 
-- **Teknik analiz:** RSI, Stochastic RSI, MACD, EMA 9/21/50/200, Bollinger, ADX, ATR, destek/direnç, pivot, mum gövde/fitil oranı, çoklu zaman dilimi uyumu ve piyasa rejimi tespiti.
+- **Teknik analiz:** RSI, MACD, EMA 9/21/50/200, Bollinger, ADX, ATR, destek/direnç, pivot, mum gövde/fitil oranı, çoklu zaman dilimi uyumu ve piyasa rejimi tespiti.
 - **Duygu analizi:** RSS haberleri (anahtar varsa CryptoPanic), VADER puanlaması, Korku & Açgözlülük endeksi.
 - **Ağırlıklı long/short sinyali:** 8 faktör (EMA kesişimi, RSI, MACD, duygu, Bollinger, ADX trendi, hacim, mum formasyonu); sert ve yumuşak red sebepleri panelde gösterilir.
 - **Kendini ayarlayan ağırlıklar:** ağırlıklar kapanan işlemlerden 50/200/1000 işlemlik pencerelerle yeniden hesaplanır; NumPy lojistik regresyon meta-filtresi aynı geçmişle yeniden eğitilir (`update_weights_from_history`).
