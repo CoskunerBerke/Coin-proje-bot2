@@ -10,6 +10,11 @@ from datetime import datetime, timezone
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 from config import CRYPTOPANIC_API_KEY, RSS_FEEDS
 
+# feedparser.parse(url) zaman aşımı olmadan bekler; yanıt vermeyen tek bir RSS sunucusu
+# bot motorunu (SL/TP kontrolleri dahil) süresiz kilitleyebilir. Bu yüzden içerik
+# requests ile zaman aşımlı indirilir, feedparser'a sadece metin verilir.
+RSS_TIMEOUT_SECONDS = 8
+
 
 class SentimentAnalyzer:
     """Haber kaynaklarından (RSS + API) sentiment analizi yapar."""
@@ -64,7 +69,9 @@ class SentimentAnalyzer:
             all_entries = []
             for url in RSS_FEEDS:
                 try:
-                    feed = feedparser.parse(url)
+                    resp = requests.get(url, timeout=RSS_TIMEOUT_SECONDS,
+                                        headers={"User-Agent": "Mozilla/5.0 (compatible; coin-proje-bot2)"})
+                    feed = feedparser.parse(resp.content)
                     for entry in feed.entries[:10]:
                         all_entries.append({
                             "title": entry.title,
