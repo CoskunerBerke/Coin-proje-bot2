@@ -205,3 +205,28 @@ def test_console_only_logs_mutes_the_log_file_only_for_the_current_thread(workdi
     assert "visitor view" not in lines
     assert "engine decision" in lines and "after the block" in lines
     assert "visitor view" in capsys.readouterr().out  # still printed to the server console
+
+
+def _snapshot(directory):
+    import hashlib
+
+    return {p.name: hashlib.sha1(p.read_bytes()).hexdigest() for p in directory.iterdir() if p.is_file()}
+
+
+def test_public_get_endpoints_do_not_change_files_or_the_coin_list(client, app_mod, synthetic_market,
+                                                                   workdir, monkeypatch):
+    # The Telegram cloud pull behind /api/trades and /api/avoided is stubbed by the app_mod fixture
+    # (it is the documented, rate-limited exception).
+    monkeypatch.setattr("spot_investor.SpotInvestor.scan_spot_opportunities", lambda self: None)
+    demo_server.seed_demo_data(str(workdir), synthetic_market)
+    before_files, before_coins = _snapshot(workdir), dict(app_mod.SUPPORTED_COINS)
+
+    paths = [r.rule for r in app_mod.app.url_map.iter_rules()
+             if "GET" in r.methods and "<" not in r.rule and r.endpoint != "static"]
+    paths += ["/api/analysis/BTC/15m", "/api/analysis/DOGE/1h"]
+    assert "/api/trades" in paths and "/api/logs" in paths
+    for path in paths:
+        assert client.get(path).status_code == 200, path
+
+    assert _snapshot(workdir) == before_files
+    assert app_mod.SUPPORTED_COINS == before_coins
