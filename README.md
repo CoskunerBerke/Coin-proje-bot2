@@ -38,7 +38,7 @@ The engine scans the coins in `ACTIVE_COINS` (BTC and SOL, see `config.py`) on s
 - **Weighted long/short signal**: eight factors (EMA crossover, RSI, MACD, sentiment, Bollinger, ADX trend, volume, candle pattern); hard and soft reject reasons are shown in the panel.
 - **Self-adjusting weights**: factor weights are re-estimated from closed trades over 50/200/1000-trade windows, and a NumPy logistic-regression meta-filter is retrained on the same history (`update_weights_from_history`).
 - **Simulated trade management**: position sizing by stop distance, fixed 3x leverage, partial take-profit (TP1/TP2), regime-aware trailing stops, structure exits, time barriers.
-- **Risk guards**: no new entries for the day after 3 consecutive losses or -3 % on the day; macro "crisis" filter (USD/TRY, BTC dominance, stablecoin flows, Fear & Greed).
+- **Risk guards**: no new entries for the day after 3 consecutive losses or -3 % on the day; macro "crisis" filter (USD/TRY, BTC dominance, total market-cap change, Fear & Greed).
 - **Counterfactual analysis and coin memory**: "what if I had entered / held?" tracking and a per-coin trade history profile.
 - **Long-term spot scanner**: daily-chart checks (EMA breakouts, RSI accumulation zone).
 - **REST API + control panel**: trades, skipped trades, memory, logs, balance, settings and per-coin analysis. Read-only views are public; every state-changing call needs an admin token.
@@ -154,7 +154,7 @@ All values come from environment variables (or `.env`, see `.env.example`). Name
 |---|---|---|
 | `ADMIN_TOKEN` | Required `X-Admin-Token` header for `POST /api/settings`, `/api/close-trade/<id>`, `/api/telegram-test`, `/api/memory-report`, `/api/danger-reset-db` | those endpoints return 503 |
 | `CORS_ORIGINS` | Comma-separated panel origins allowed to call the API from a browser | same-origin only |
-| `TELEGRAM_TOKEN` | Bot token for alerts and the cloud backup (never returned by the API) | Telegram off |
+| `TELEGRAM_TOKEN` | Bot token for alerts and the cloud backup (masked in `GET /api/settings`, redacted from logs) | Telegram off |
 | `TELEGRAM_CHAT_ID` | Chat for trade alerts and the memory report | Telegram off |
 | `TELEGRAM_DATA_CHAT_ID` | Chat for the pinned JSON backup | falls back to `TELEGRAM_CHAT_ID` |
 | `CRYPTOPANIC_API_KEY` | Extra news source | RSS feeds only |
@@ -172,7 +172,7 @@ pip install -r requirements-dev.txt
 python -m pytest
 ```
 
-57 tests, all offline: admin-token checks on every state-changing endpoint (503 without `ADMIN_TOKEN`, 401 for a missing or wrong token), the CORS allow-list, token masking, coin-symbol validation, manual-close timestamps, the daily loss guard, Telegram credential fallbacks, the RSS timeout and the demo data. GitHub Actions runs byte-compilation and the same suite on every push and pull request.
+69 tests, all offline: admin-token checks on every state-changing endpoint (503 without `ADMIN_TOKEN`, 401 for a missing or wrong token), the CORS allow-list, token masking in settings and logs, coin-symbol validation, manual-close timestamps, the daily loss guard, Telegram credential fallbacks, the RSS timeout and the demo data. GitHub Actions runs byte-compilation and the same suite on every push and pull request.
 
 ## Deployment
 
@@ -184,6 +184,7 @@ python -m pytest
 
 - The panel asks for the admin token once per browser tab, keeps it in `sessionStorage` and sends it only with state-changing requests. The server compares it in constant time.
 - `GET /api/settings` reports only whether a Telegram token is set (`tg_token_set`), never the token itself.
+- The bot log is public (`GET /api/logs`). Telegram calls carry the token in the URL and network errors repeat that URL, so every log line is redacted before it is written, and again when the endpoint serves older lines.
 - Coin symbols in `/api/analysis/<coin>/<timeframe>` must match `^[A-Z0-9]{2,15}$`, and a custom coin is only remembered after the exchange lookup succeeds.
 - The panel still loads Tailwind (script) and Font Awesome (stylesheet) from public CDNs.
 - `app.py` runs Flask's built-in server, as before; a WSGI server would be the next step for anything beyond a hobby deployment.
@@ -223,7 +224,7 @@ Motor, `ACTIVE_COINS` içindeki coinleri (BTC ve SOL, `config.py`) kısa zaman d
 - **Ağırlıklı long/short sinyali:** 8 faktör (EMA kesişimi, RSI, MACD, duygu, Bollinger, ADX trendi, hacim, mum formasyonu); sert ve yumuşak red sebepleri panelde gösterilir.
 - **Kendini ayarlayan ağırlıklar:** ağırlıklar kapanan işlemlerden 50/200/1000 işlemlik pencerelerle yeniden hesaplanır; NumPy lojistik regresyon meta-filtresi aynı geçmişle yeniden eğitilir (`update_weights_from_history`).
 - **Simülasyon işlem yönetimi:** stop mesafesine göre boyut, sabit 3x kaldıraç, kademeli kâr alma (TP1/TP2), rejime duyarlı takip stopu, yapısal çıkış, zaman bariyerleri.
-- **Risk korumaları:** üst üste 3 zarar veya gün içinde -%3 sonrasında o gün yeni işlem açılmaz; makro "kriz" filtresi (USD/TRY, BTC dominansı, stablecoin akışları, Korku & Açgözlülük).
+- **Risk korumaları:** üst üste 3 zarar veya gün içinde -%3 sonrasında o gün yeni işlem açılmaz; makro "kriz" filtresi (USD/TRY, BTC dominansı, toplam piyasa değeri değişimi, Korku & Açgözlülük).
 - **Karşı-olgusal analiz ve coin hafızası:** "girseydim / tutsaydım ne olurdu?" takibi ve coin bazlı işlem geçmişi profili.
 - **Uzun vadeli spot tarayıcı:** günlük grafikte EMA kırılımı ve RSI birikim bölgesi kontrolleri.
 - **REST API + kontrol paneli:** işlemler, atlanan işlemler, hafıza, loglar, bakiye, ayarlar ve coin analizi. Okuma ekranları herkese açıktır; durum değiştiren her çağrı yönetici anahtarı ister.
@@ -339,7 +340,7 @@ Tüm değerler ortam değişkenlerinden (veya `.env`, bkz. `.env.example`) okunu
 |---|---|---|
 | `ADMIN_TOKEN` | `POST /api/settings`, `/api/close-trade/<id>`, `/api/telegram-test`, `/api/memory-report`, `/api/danger-reset-db` için zorunlu `X-Admin-Token` başlığı | bu uç noktalar 503 döner |
 | `CORS_ORIGINS` | API'yi tarayıcıdan çağırabilecek panel adresleri (virgülle ayrılmış) | yalnızca aynı origin |
-| `TELEGRAM_TOKEN` | Bildirim ve bulut yedeği için bot token'ı (API asla geri döndürmez) | Telegram kapalı |
+| `TELEGRAM_TOKEN` | Bildirim ve bulut yedeği için bot token'ı (`GET /api/settings`'te gizlenir, loglardan silinir) | Telegram kapalı |
 | `TELEGRAM_CHAT_ID` | İşlem bildirimleri ve hafıza raporu kanalı | Telegram kapalı |
 | `TELEGRAM_DATA_CHAT_ID` | Sabitlenmiş JSON yedeği kanalı | `TELEGRAM_CHAT_ID` kullanılır |
 | `CRYPTOPANIC_API_KEY` | Ek haber kaynağı | sadece RSS |
@@ -357,7 +358,7 @@ pip install -r requirements-dev.txt
 python -m pytest
 ```
 
-57 test, hepsi çevrimdışı: durum değiştiren her uç noktada yönetici anahtarı kontrolü (`ADMIN_TOKEN` yoksa 503, anahtar eksik/yanlışsa 401), CORS izin listesi, token gizleme, coin sembolü doğrulaması, manuel kapatma zaman damgası, günlük zarar koruması, Telegram ayar geri düşüşleri, RSS zaman aşımı ve demo verisi. GitHub Actions her push ve pull request'te derleme kontrolünü ve aynı test paketini çalıştırır.
+69 test, hepsi çevrimdışı: durum değiştiren her uç noktada yönetici anahtarı kontrolü (`ADMIN_TOKEN` yoksa 503, anahtar eksik/yanlışsa 401), CORS izin listesi, ayarlarda ve loglarda token gizleme, coin sembolü doğrulaması, manuel kapatma zaman damgası, günlük zarar koruması, Telegram ayar geri düşüşleri, RSS zaman aşımı ve demo verisi. GitHub Actions her push ve pull request'te derleme kontrolünü ve aynı test paketini çalıştırır.
 
 ### Yayına alma
 
@@ -369,6 +370,7 @@ python -m pytest
 
 - Panel yönetici anahtarını tarayıcı sekmesi başına bir kez sorar, `sessionStorage`'da tutar ve sadece durum değiştiren isteklerde gönderir; sunucu anahtarı sabit zamanlı karşılaştırır.
 - `GET /api/settings` Telegram token'ını asla döndürmez, sadece kayıtlı olup olmadığını (`tg_token_set`) bildirir.
+- Bot logu herkese açıktır (`GET /api/logs`). Telegram çağrıları token'ı URL'de taşır ve ağ hataları bu URL'yi tekrarlar; bu yüzden her log satırı yazılmadan önce temizlenir, uç nokta eski satırları sunarken de tekrar temizler.
 - `/api/analysis/<coin>/<timeframe>` içindeki coin sembolü `^[A-Z0-9]{2,15}$` olmalıdır; özel coin ancak borsa sorgusu başarılı olursa listeye eklenir.
 - Panel Tailwind'i (script) ve Font Awesome'ı (stil dosyası) hâlâ herkese açık CDN'lerden yükler.
 - `app.py` önceden olduğu gibi Flask'ın yerleşik sunucusunu kullanır; hobi ölçeğinin ötesinde bir yayın için sıradaki adım bir WSGI sunucusudur.

@@ -3,7 +3,7 @@
 Kripto Coin Analiz Uygulaması — Makro Ekonomik Farkındalık Modülü (Macro Sentinel)
 Sadece BOT2_AGGRESSIVE için aktif. BOT1_PASSIVE'de devre dışı kalır.
 
-USD/TRY, BTC Dominansı, Stablecoin Akışları ve Fear & Greed verilerini
+USD/TRY, BTC Dominansı, toplam piyasa değeri değişimi ve Fear & Greed verilerini
 analiz ederek makro risk skoru üretir. Bu skor sinyal kalitesini,
 pozisyon boyutunu ve işlem kararlarını etkiler.
 
