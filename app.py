@@ -15,7 +15,7 @@ import gc
 from datetime import datetime, timezone, timedelta
 from bot_engine import run_engine
 from config import SUPPORTED_COINS, load_app_settings, save_app_settings
-from log_manager import add_log, redact_secrets
+from log_manager import add_log, console_only_logs, redact_secrets
 from trade_executor import TradeExecutor
 from db_manager import db_manager
 from data_fetcher import DataFetcher
@@ -624,6 +624,7 @@ ALLOWED_TIMEFRAMES = {"1m", "5m", "15m", "30m", "1h", "4h", "1d"}
 
 
 @app.route("/api/analysis/<coin>/<timeframe>", methods=["GET"])
+@console_only_logs()  # 🔒 herkese açık okuma: filtre/hata satırları paylaşılan bot_logs.txt'ye yazılmaz
 def get_coin_analysis(coin, timeframe):
     try:
         clean_coin = coin.strip().upper()
@@ -634,19 +635,22 @@ def get_coin_analysis(coin, timeframe):
             return jsonify({"status": "error", "message": "Geçersiz zaman dilimi."}), 400
         coin = clean_coin
 
+        # 🔒 Özel coin (SUPPORTED_COINS dışında) sadece bu istek için analiz edilir;
+        # herkese açık GET global coin listesini (tüm ziyaretçilerin kenar çubuğu) değiştirmez.
+        is_custom_coin = coin not in SUPPORTED_COINS
+
         # Canlı fiyat ve market bilgilerini çek (Her zaman taze!)
+        ticker = None
         try:
             ticker = fetcher.fetch_ticker(coin)
-            if clean_coin not in SUPPORTED_COINS:
-                # Özel coin sadece borsada gerçekten bulunduysa listeye eklenir
-                SUPPORTED_COINS[clean_coin] = {
-                    "name": clean_coin,
-                    "coingecko_id": clean_coin.lower(),
-                    "symbol": f"{clean_coin}/USDT"
-                }
             coin_info = fetcher.fetch_coin_info(coin)
         except Exception as ticker_err:
             add_log(f"⚠️ Market Bilgisi Çekilemedi ({coin}): {str(ticker_err)}")
+            if is_custom_coin and ticker is None:
+                return jsonify({
+                    "status": "error",
+                    "message": f"{coin} borsada bulunamadı veya piyasa verisi alınamadı."
+                }), 404
             ticker = {"last": 0.0, "high": 0.0, "low": 0.0, "volume": 0.0, "quoteVolume": 0.0, "changePercent": 0.0}
             coin_info = {"market_cap_rank": 0, "market_cap": 0.0}
 

@@ -1,9 +1,27 @@
 import os
 import re
+import threading
+from contextlib import contextmanager
 from datetime import datetime, timezone, timedelta
 import streamlit as st
 
 LOG_FILE = "bot_logs.txt"
+
+# 🔒 Herkese açık okuma uç noktaları (ör. GET /api/analysis) paylaşılan log dosyasını değiştirmesin diye:
+# bu bayrak açıkken add_log sadece terminale yazar. İş parçacığına özeldir, motorun logları etkilenmez.
+_log_state = threading.local()
+
+
+@contextmanager
+def console_only_logs():
+    """Bu blok içinde (yalnızca bu iş parçacığında) add_log bot_logs.txt'ye yazmaz, sadece terminale basar.
+    Fonksiyon dekoratörü olarak da kullanılabilir: @console_only_logs()"""
+    previous = getattr(_log_state, "console_only", False)
+    _log_state.console_only = True
+    try:
+        yield
+    finally:
+        _log_state.console_only = previous
 
 # 🔐 Telegram token'ı URL'nin içinde taşınır (https://api.telegram.org/bot<TOKEN>/...).
 # requests bağlantı hataları bu URL'yi mesajına koyar; log ise herkese açık /api/logs'ta görünür.
@@ -41,7 +59,10 @@ def add_log(message):
             print(f"[{timestamp}] {message}".encode(encoding, errors='replace').decode(encoding), flush=True)
         except:
             pass
-    
+
+    if getattr(_log_state, "console_only", False):
+        return
+
     existing_logs = []
     if os.path.exists(LOG_FILE):
         try:

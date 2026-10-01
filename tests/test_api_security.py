@@ -1,7 +1,15 @@
 """Auth, CORS and secret-handling checks for the REST API (Flask test client, no network)."""
+import importlib.util
 import json
+import os
 
 import pytest
+
+from conftest import REPO_ROOT
+
+_spec = importlib.util.spec_from_file_location("demo_server", os.path.join(REPO_ROOT, "scripts", "demo_server.py"))
+demo_server = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(demo_server)
 
 ADMIN = "test-admin-token"
 
@@ -127,7 +135,7 @@ def test_analysis_rejects_unknown_timeframe(client):
     assert client.get("/api/analysis/BTC/7x").status_code == 400
 
 
-def test_analysis_does_not_register_coin_when_exchange_lookup_fails(client, app_mod, monkeypatch):
+def test_analysis_of_unknown_custom_coin_returns_404_without_side_effects(client, app_mod, monkeypatch, workdir):
     def offline(*args, **kwargs):
         raise RuntimeError("offline")
 
@@ -135,6 +143,65 @@ def test_analysis_does_not_register_coin_when_exchange_lookup_fails(client, app_
     monkeypatch.setattr(app_mod.fetcher, "fetch_coin_info", offline)
     monkeypatch.setattr(app_mod.fetcher, "fetch_ohlcv", offline)
     res = client.get("/api/analysis/NOTACOIN1/15m")
-    assert res.status_code == 200
+    assert res.status_code == 404
+    assert res.get_json()["status"] == "error"
     assert "NOTACOIN1" not in app_mod.SUPPORTED_COINS
     assert "NOTACOIN1" not in client.get("/").get_json()["supported_coins"]
+    assert not (workdir / "bot_logs.txt").exists()
+
+
+@pytest.fixture
+def synthetic_market(app_mod, monkeypatch):
+    """Offline market data: the demo's seeded random walk instead of Binance/CoinGecko, no news."""
+    fetcher = demo_server.SyntheticFetcher()
+    for target in (app_mod.fetcher, app_mod.signal_gen.fetcher):
+        for name in ("fetch_ohlcv", "fetch_ticker", "fetch_coin_info", "fetch_futures_data"):
+            monkeypatch.setattr(target, name, getattr(fetcher, name))
+    monkeypatch.setattr("sentiment_analysis.SentimentAnalyzer._fetch_rss_news", lambda self, coin_key: [])
+    monkeypatch.setattr("sentiment_analysis.SentimentAnalyzer._fetch_api_news", lambda self, coin_key: [])
+    monkeypatch.setattr("sentiment_analysis.SentimentAnalyzer._fetch_fear_greed",
+                        lambda self: {"value": 50, "classification": "Neutral"})
+    return fetcher
+
+
+@pytest.mark.parametrize("timeframe", ["1m", "5m", "15m", "1h"])
+def test_public_analysis_of_custom_coin_does_not_change_shared_state(client, app_mod, synthetic_market,
+                                                                     workdir, timeframe):
+    before = dict(app_mod.SUPPORTED_COINS)
+    (workdir / "bot_logs.txt").write_text("[2026-01-01 00:00:00] existing line\n", encoding="utf-8")
+    res = client.get(f"/api/analysis/DOGE/{timeframe}")
+    assert res.status_code == 200
+    body = res.get_json()
+    assert body["status"] == "success"
+    assert body["ticker"]["last"] > 0 and body["signal"]
+    assert app_mod.SUPPORTED_COINS == before
+    assert "DOGE" not in client.get("/").get_json()["supported_coins"]
+    # Filter decisions of a visitor's view never land in the shared log (GET /api/logs).
+    assert (workdir / "bot_logs.txt").read_text(encoding="utf-8") == "[2026-01-01 00:00:00] existing line\n"
+
+
+@pytest.mark.parametrize("coin", ["BTC", "SOL"])
+def test_public_analysis_of_configured_coin_still_works_without_writing_the_log(client, app_mod, synthetic_market,
+                                                                               workdir, coin):
+    res = client.get(f"/api/analysis/{coin}/15m")
+    assert res.status_code == 200
+    assert res.get_json()["status"] == "success"
+    assert coin in client.get("/").get_json()["supported_coins"]
+    assert not (workdir / "bot_logs.txt").exists()
+
+
+def test_console_only_logs_mutes_the_log_file_only_for_the_current_thread(workdir, capsys):
+    import threading
+
+    from log_manager import add_log, console_only_logs
+
+    with console_only_logs():
+        add_log("visitor view")
+        worker = threading.Thread(target=add_log, args=("engine decision",))
+        worker.start()
+        worker.join()
+    add_log("after the block")
+    lines = (workdir / "bot_logs.txt").read_text(encoding="utf-8")
+    assert "visitor view" not in lines
+    assert "engine decision" in lines and "after the block" in lines
+    assert "visitor view" in capsys.readouterr().out  # still printed to the server console
