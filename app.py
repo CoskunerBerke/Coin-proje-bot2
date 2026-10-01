@@ -597,12 +597,9 @@ def danger_reset_db():
 
         # Unpin from Telegram if applicable
         try:
-            from config import load_app_settings
-            settings = load_app_settings()
-            token = os.getenv("TELEGRAM_TOKEN", settings.get("tg_token", ""))
-            chat_id = os.getenv("TELEGRAM_DATA_CHAT_ID", settings.get("tg_data_chat_id", os.getenv("TELEGRAM_CHAT_ID", settings.get("tg_chat_id", ""))))
-            if str(chat_id) == "-5183733793":
-                chat_id = "-1003958108455"
+            # Yedek kanalı bilgisi sadece ortam değişkenlerinden / kayıtlı ayarlardan gelir
+            # (TELEGRAM_DATA_CHAT_ID, yoksa TELEGRAM_CHAT_ID); tanımlı değilse gönderim atlanır.
+            token, chat_id = db_manager._get_sync_credentials()
             if token and chat_id:
                 url_unpin = f"https://api.telegram.org/bot{token}/unpinChatMessage"
                 requests.post(url_unpin, data={"chat_id": chat_id}, timeout=5)
