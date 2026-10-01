@@ -15,7 +15,7 @@ import gc
 from datetime import datetime, timezone, timedelta
 from bot_engine import run_engine
 from config import SUPPORTED_COINS, load_app_settings, save_app_settings
-from log_manager import add_log
+from log_manager import add_log, redact_secrets
 from trade_executor import TradeExecutor
 from db_manager import db_manager
 from data_fetcher import DataFetcher
@@ -492,8 +492,8 @@ def get_logs():
         try:
             with open("bot_logs.txt", "r", encoding="utf-8") as f:
                 lines = f.readlines()
-                # Son 100 log satırını ham liste olarak gönder
-                return jsonify([line.strip() for line in lines])
+                # Son 100 log satırını liste olarak gönder (eski satırlarda kalmış token'lar da gizlenir)
+                return jsonify([redact_secrets(line.strip()) for line in lines])
         except Exception as e:
             return jsonify({"error": f"Loglar okunamadı: {str(e)}"}), 500
     return jsonify([])

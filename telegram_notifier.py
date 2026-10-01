@@ -1,6 +1,7 @@
 import requests
 import os
 from datetime import datetime, timezone, timedelta
+from log_manager import redact_secrets
 
 # Turkey Time Zone (UTC+3)
 tr_tz = timezone(timedelta(hours=3))
@@ -30,7 +31,8 @@ class TelegramNotifier:
                 error_data = response.json()
                 return False, f"Telegram Hatası: {error_data.get('description', 'Bilinmeyen hata')}"
         except Exception as e:
-            return False, f"Bağlantı Hatası: {str(e)}"
+            # requests hata mesajı token'lı URL'yi içerir; dışarı vermeden önce gizlenir
+            return False, f"Bağlantı Hatası: {redact_secrets(e)}"
 
     def send_trade_alert(self, trade: dict, is_open: bool = True, balance: float = None):
         """Yeni bir işlem açıldığında veya kapandığında detaylı bildirim gönderir."""
