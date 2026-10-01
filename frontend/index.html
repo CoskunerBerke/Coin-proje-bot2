@@ -1198,7 +1198,8 @@
                     // Trade levels setup
                     const tps = signal.take_profit || [0.0];
                     const tp1 = tps[0] || 0.0;
-                    const tp2 = tps[1] || tp1 * 1.05;
+                    // Backend tek hedef döndürür; TP-2 yön bazlı %5 ileri (SHORT'ta aşağı) gösterilir
+                    const tp2 = tps[1] || (signal.direction === "SHORT" ? tp1 * 0.95 : tp1 * 1.05);
                     
                     document.getElementById("level-entry").textContent = "$" + parseFloat(signal.entry || 0.0).toFixed(4);
                     document.getElementById("level-stop").textContent = "$" + parseFloat(signal.stop_loss || 0.0).toFixed(4);
