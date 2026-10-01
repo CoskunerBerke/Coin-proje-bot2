@@ -21,7 +21,7 @@ A Python bot that scores BTC and SOL setups from technical indicators, news sent
 
 ![Control panel overview: BTC signal card, action plan and key levels (offline demo with synthetic market data)](docs/screenshots/panel-overview.png)
 
-<sub>All screenshots come from the offline demo (`scripts/demo_server.py`): synthetic market data from a seeded random walk and fictional simulated trades. The market-cap card is empty because CoinGecko is not called offline.</sub>
+<sub>All screenshots come from the offline demo (`scripts/demo_server.py`): synthetic market data from a seeded random walk and fictional simulated trades. The market-cap card shows $0 because CoinGecko is not called offline.</sub>
 
 | Simulated trades and balance | Learning and performance panel | Mobile |
 |---|---|---|
@@ -41,7 +41,7 @@ The engine scans the coins in `ACTIVE_COINS` (BTC and SOL, see `config.py`) on s
 - **Risk guards**: no new entries for the day after 3 consecutive losses or -3 % on the day; macro "crisis" filter (USD/TRY, BTC dominance, total market-cap change, Fear & Greed).
 - **Counterfactual analysis and coin memory**: "what if I had entered / held?" tracking and a per-coin trade history profile.
 - **Long-term spot scanner**: daily-chart checks (EMA breakouts, RSI accumulation zone).
-- **REST API + control panel**: trades, skipped trades, memory, logs, balance, settings and per-coin analysis. Read-only views are public; every state-changing call needs an admin token.
+- **REST API + control panel**: trades, skipped trades, memory, logs, balance, settings and per-coin analysis. Read-only views are public; every state-changing call needs an admin token. The one side effect a public request can have is the rate-limited Telegram backup pull described under [Security notes](#security-notes).
 - **Telegram**: trade alerts and a pinned JSON backup of the trade data that is pulled back on restart.
 
 ## Architecture
@@ -119,7 +119,7 @@ coin-proje-bot2/
 
 ## Quick start
 
-### Offline demo (no API keys, no network)
+### Offline demo (no API keys, simulated market data)
 
 ```bash
 git clone https://github.com/CoskunerBerke/coin-proje-bot2.git
@@ -131,7 +131,7 @@ python scripts/demo_server.py                 # API on http://localhost:5000, da
 python -m http.server 8080 -d frontend        # second terminal: panel on http://localhost:8080
 ```
 
-The demo seeds fictional trades, disables the engine thread and replaces the exchange and news calls with a seeded random walk. Signals, levels and statistics on the panel are computed by the real code from that synthetic data. Admin actions answer 503 until you start the demo with `ADMIN_TOKEN=<something> python scripts/demo_server.py`.
+The demo seeds fictional trades, disables the engine thread and replaces the Binance and CoinGecko calls with a seeded random walk. The news calls are stubbed: the news lists come back empty and the Fear & Greed index is a fixed neutral 50. Signals, levels and statistics on the panel are computed by the real code from that synthetic data. The demo API makes no outbound network calls (the Telegram variables are blanked), but the panel page still loads Tailwind (cdn.tailwindcss.com), Google Fonts and Font Awesome (cdnjs) from CDNs, so the browser needs internet access to show it styled. Admin actions answer 503 until you start the demo with `ADMIN_TOKEN=<something> python scripts/demo_server.py`.
 
 ### Against live market data
 
@@ -172,7 +172,7 @@ pip install -r requirements-dev.txt
 python -m pytest
 ```
 
-69 tests, all offline: admin-token checks on every state-changing endpoint (503 without `ADMIN_TOKEN`, 401 for a missing or wrong token), the CORS allow-list, token masking in settings and logs, coin-symbol validation, manual-close timestamps, the daily loss guard, Telegram credential fallbacks, the RSS timeout and the demo data. GitHub Actions runs byte-compilation and the same suite on every push and pull request.
+78 tests, all offline: admin-token checks on every state-changing endpoint (503 without `ADMIN_TOKEN`, 401 for a missing or wrong token), public GET requests leaving the data files, the log and the coin list untouched, the CORS allow-list, token masking in settings and logs, coin-symbol validation, manual-close timestamps, the daily loss guard (on a frozen clock), Telegram credential fallbacks, the RSS timeout and the demo data. GitHub Actions runs byte-compilation and the same suite on every push and pull request.
 
 ## Deployment
 
@@ -185,8 +185,9 @@ python -m pytest
 - The panel asks for the admin token once per browser tab, keeps it in `sessionStorage` and sends it only with state-changing requests. The server compares it in constant time.
 - `GET /api/settings` reports only whether a Telegram token is set (`tg_token_set`), never the token itself.
 - The bot log is public (`GET /api/logs`). Telegram calls carry the token in the URL and network errors repeat that URL, so every log line is redacted before it is written, and again when the endpoint serves older lines.
-- Coin symbols in `/api/analysis/<coin>/<timeframe>` must match `^[A-Z0-9]{2,15}$`, and a custom coin is only remembered after the exchange lookup succeeds.
-- The panel still loads Tailwind (script) and Font Awesome (stylesheet) from public CDNs.
+- Public GET requests do not change server state, with one exception: `GET /api/trades` and `GET /api/avoided` start a background pull of the pinned Telegram backup, at most once every 20 seconds. That pull can refresh the local JSON files from the backup and add a line to the bot log (for example when Telegram is not configured). The coin analysis writes its filter lines to the server console, not to the shared bot log.
+- Coin symbols in `/api/analysis/<coin>/<timeframe>` must match `^[A-Z0-9]{2,15}$`. A custom coin is analysed for that request only (404 when the exchange lookup fails) and is never added to the shared coin list; the panel keeps it in the visitor's own sidebar until the page is reloaded.
+- The panel still loads Tailwind (script), Google Fonts and Font Awesome (cdnjs stylesheet) from public CDNs.
 - `app.py` runs Flask's built-in server, as before; a WSGI server would be the next step for anything beyond a hobby deployment.
 
 ## Status and known limitations
@@ -211,7 +212,7 @@ Signals are probabilistic and produced for learning purposes. Crypto markets are
 > yeniden yazıldı. Bu bot hiçbir zaman gerçek emir göndermez: motor 1.000 USDT'lik sanal bakiyeyle simülasyon moduna
 > kilitlidir. Yatırım tavsiyesi değildir.
 
-Ekran görüntüleri sayfanın başındadır. Hepsi çevrimdışı demodan (`scripts/demo_server.py`) alınmıştır: sabit tohumlu rastgele yürüyüşle üretilmiş sentetik piyasa verisi ve tamamen kurgusal simülasyon işlemleri. Çevrimdışı modda CoinGecko çağrılmadığı için piyasa değeri kartı boştur.
+Ekran görüntüleri sayfanın başındadır. Hepsi çevrimdışı demodan (`scripts/demo_server.py`) alınmıştır: sabit tohumlu rastgele yürüyüşle üretilmiş sentetik piyasa verisi ve tamamen kurgusal simülasyon işlemleri. Çevrimdışı modda CoinGecko çağrılmadığı için piyasa değeri kartı $0 gösterir.
 
 ### Genel bakış
 
@@ -227,7 +228,7 @@ Motor, `ACTIVE_COINS` içindeki coinleri (BTC ve SOL, `config.py`) kısa zaman d
 - **Risk korumaları:** üst üste 3 zarar veya gün içinde -%3 sonrasında o gün yeni işlem açılmaz; makro "kriz" filtresi (USD/TRY, BTC dominansı, toplam piyasa değeri değişimi, Korku & Açgözlülük).
 - **Karşı-olgusal analiz ve coin hafızası:** "girseydim / tutsaydım ne olurdu?" takibi ve coin bazlı işlem geçmişi profili.
 - **Uzun vadeli spot tarayıcı:** günlük grafikte EMA kırılımı ve RSI birikim bölgesi kontrolleri.
-- **REST API + kontrol paneli:** işlemler, atlanan işlemler, hafıza, loglar, bakiye, ayarlar ve coin analizi. Okuma ekranları herkese açıktır; durum değiştiren her çağrı yönetici anahtarı ister.
+- **REST API + kontrol paneli:** işlemler, atlanan işlemler, hafıza, loglar, bakiye, ayarlar ve coin analizi. Okuma ekranları herkese açıktır; durum değiştiren her çağrı yönetici anahtarı ister. Herkese açık bir isteğin tek yan etkisi, [Güvenlik notları](#güvenlik-notları) bölümünde anlatılan, sıklığı sınırlı Telegram yedek çekmesidir.
 - **Telegram:** işlem bildirimleri ve yeniden başlatmada geri yüklenen sabitlenmiş JSON yedeği.
 
 ### Mimari
@@ -305,7 +306,7 @@ coin-proje-bot2/
 
 ### Hızlı başlangıç
 
-Çevrimdışı demo (API anahtarı ve ağ gerekmez):
+Çevrimdışı demo (API anahtarı gerekmez, piyasa verisi simüle edilir):
 
 ```bash
 git clone https://github.com/CoskunerBerke/coin-proje-bot2.git
@@ -317,7 +318,7 @@ python scripts/demo_server.py                 # API: http://localhost:5000, veri
 python -m http.server 8080 -d frontend        # ikinci terminal: panel http://localhost:8080
 ```
 
-Demo kurgusal işlemler oluşturur, motor iş parçacığını kapatır ve borsa/haber çağrılarını sabit tohumlu rastgele yürüyüşle değiştirir. Paneldeki sinyal, seviye ve istatistikler gerçek kod tarafından bu sentetik veriden hesaplanır. Yönetici işlemleri, demo `ADMIN_TOKEN=<değer> python scripts/demo_server.py` ile başlatılmadıkça 503 döner.
+Demo kurgusal işlemler oluşturur, motor iş parçacığını kapatır ve Binance ile CoinGecko çağrılarını sabit tohumlu rastgele yürüyüşle değiştirir. Haber çağrıları devre dışıdır: haber listeleri boş döner, Korku & Açgözlülük endeksi sabit ve nötr (50) kabul edilir. Paneldeki sinyal, seviye ve istatistikler gerçek kod tarafından bu sentetik veriden hesaplanır. Demo API'si dışarıya hiçbir ağ çağrısı yapmaz (Telegram değişkenleri boşaltılır); ancak panel sayfası Tailwind'i (cdn.tailwindcss.com), Google Fonts'u ve Font Awesome'ı (cdnjs) hâlâ CDN'lerden yükler, bu yüzden düzgün görünmesi için tarayıcının internete erişmesi gerekir. Yönetici işlemleri, demo `ADMIN_TOKEN=<değer> python scripts/demo_server.py` ile başlatılmadıkça 503 döner.
 
 Canlı piyasa verisiyle:
 
@@ -358,7 +359,7 @@ pip install -r requirements-dev.txt
 python -m pytest
 ```
 
-69 test, hepsi çevrimdışı: durum değiştiren her uç noktada yönetici anahtarı kontrolü (`ADMIN_TOKEN` yoksa 503, anahtar eksik/yanlışsa 401), CORS izin listesi, ayarlarda ve loglarda token gizleme, coin sembolü doğrulaması, manuel kapatma zaman damgası, günlük zarar koruması, Telegram ayar geri düşüşleri, RSS zaman aşımı ve demo verisi. GitHub Actions her push ve pull request'te derleme kontrolünü ve aynı test paketini çalıştırır.
+78 test, hepsi çevrimdışı: durum değiştiren her uç noktada yönetici anahtarı kontrolü (`ADMIN_TOKEN` yoksa 503, anahtar eksik/yanlışsa 401), herkese açık GET isteklerinin veri dosyalarını, logu ve coin listesini değiştirmemesi, CORS izin listesi, ayarlarda ve loglarda token gizleme, coin sembolü doğrulaması, manuel kapatma zaman damgası, günlük zarar koruması (sabitlenmiş saatle), Telegram ayar geri düşüşleri, RSS zaman aşımı ve demo verisi. GitHub Actions her push ve pull request'te derleme kontrolünü ve aynı test paketini çalıştırır.
 
 ### Yayına alma
 
@@ -371,8 +372,9 @@ python -m pytest
 - Panel yönetici anahtarını tarayıcı sekmesi başına bir kez sorar, `sessionStorage`'da tutar ve sadece durum değiştiren isteklerde gönderir; sunucu anahtarı sabit zamanlı karşılaştırır.
 - `GET /api/settings` Telegram token'ını asla döndürmez, sadece kayıtlı olup olmadığını (`tg_token_set`) bildirir.
 - Bot logu herkese açıktır (`GET /api/logs`). Telegram çağrıları token'ı URL'de taşır ve ağ hataları bu URL'yi tekrarlar; bu yüzden her log satırı yazılmadan önce temizlenir, uç nokta eski satırları sunarken de tekrar temizler.
-- `/api/analysis/<coin>/<timeframe>` içindeki coin sembolü `^[A-Z0-9]{2,15}$` olmalıdır; özel coin ancak borsa sorgusu başarılı olursa listeye eklenir.
-- Panel Tailwind'i (script) ve Font Awesome'ı (stil dosyası) hâlâ herkese açık CDN'lerden yükler.
+- Herkese açık GET istekleri sunucu durumunu değiştirmez; tek istisna: `GET /api/trades` ve `GET /api/avoided`, en fazla 20 saniyede bir, sabitlenmiş Telegram yedeğini arka planda çeker. Bu çekme yerel JSON dosyalarını yedekten güncelleyebilir ve bot loguna bir satır ekleyebilir (ör. Telegram ayarlı değilse). Coin analizi filtre satırlarını ortak bot loguna değil, sunucu konsoluna yazar.
+- `/api/analysis/<coin>/<timeframe>` içindeki coin sembolü `^[A-Z0-9]{2,15}$` olmalıdır. Özel coin sadece o istek için analiz edilir (borsa sorgusu başarısız olursa 404) ve ortak coin listesine asla eklenmez; panel onu sayfa yenilenene kadar yalnızca o ziyaretçinin kenar çubuğunda tutar.
+- Panel Tailwind'i (script), Google Fonts'u ve Font Awesome'ı (cdnjs stil dosyası) hâlâ herkese açık CDN'lerden yükler.
 - `app.py` önceden olduğu gibi Flask'ın yerleşik sunucusunu kullanır; hobi ölçeğinin ötesinde bir yayın için sıradaki adım bir WSGI sunucusudur.
 
 ### Durum ve bilinen sınırlamalar
