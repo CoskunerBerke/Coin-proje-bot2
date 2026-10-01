@@ -37,3 +37,6 @@ pip-delete-this-directory.txt
 .idea/
 *.swp
 *.swo
+
+# 🧪 Offline demo data (scripts/demo_server.py)
+demo-data/
