@@ -47,6 +47,8 @@ def workdir(tmp_path, monkeypatch):
 def app_mod(workdir, monkeypatch):
     # No Telegram uploads (push_to_cloud starts a 15 s timer thread otherwise).
     monkeypatch.setattr(db_manager_module.db_manager, "push_to_cloud", lambda *a, **k: None)
+    # GET /api/trades starts a background cloud sync; it would outlive the test's working directory.
+    monkeypatch.setattr(app_module, "sync_db_async", lambda: None)
     monkeypatch.setattr(app_module.executor, "notifier", None)
     return app_module
 
