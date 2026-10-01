@@ -10,6 +10,13 @@ bot_avoided_trades.json
 db_backup.json
 coin_trade_memory.json
 git_commit_diffs.json
+bot_spot_portfolio.json
+counterfactual_data.json
+counterfactual_lessons.json
+cloud_trades_debug.json
+bot_trades_archive_*.json
+bot_avoided_trades_archive_*.json
+.data_reset_v*_done
 *.tmp
 
 # 🐍 Python environment & cache
@@ -22,6 +29,8 @@ env/
 venv/
 pip-log.txt
 pip-delete-this-directory.txt
+.venv/
+.pytest_cache/
 
 # 💻 IDE configurations
 .vscode/

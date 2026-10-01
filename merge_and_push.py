@@ -10,7 +10,9 @@ with open("bot_avoided_trades.json", "r", encoding="utf-8") as f:
     local_avoided = json.load(f)
 
 # Load cloud files (from the downloaded cloud_trades_debug.json)
-cloud_debug_path = r"C:\Users\berke\.gemini\antigravity\brain\5b07afe2-4582-4f9b-a7c9-43a20e01a4a4\scratch\cloud_trades_debug.json"
+# Kullanım: python merge_and_push.py [cloud_trades_debug.json yolu]
+# (veya CLOUD_DEBUG_PATH ortam değişkeni; varsayılan: bu klasördeki cloud_trades_debug.json)
+cloud_debug_path = sys.argv[1] if len(sys.argv) > 1 else os.getenv("CLOUD_DEBUG_PATH", "cloud_trades_debug.json")
 with open(cloud_debug_path, "r", encoding="utf-8") as f:
     cloud_data = json.load(f)
     cloud_trades = cloud_data.get("trades", [])
