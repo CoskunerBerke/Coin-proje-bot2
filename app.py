@@ -410,8 +410,9 @@ def send_memory_report_telegram():
     """Hafıza raporunu Telegram'a gönderir."""
     try:
         settings = load_app_settings()
-        token = os.getenv("TELEGRAM_TOKEN", settings.get("tg_token", ""))
-        chat_id = os.getenv("TELEGRAM_CHAT_ID", settings.get("tg_chat_id", ""))
+        # Boş ortam değişkeni (ör: .env.example kopyası) kayıtlı ayarı ezmesin
+        token = os.getenv("TELEGRAM_TOKEN") or settings.get("tg_token", "")
+        chat_id = os.getenv("TELEGRAM_CHAT_ID") or settings.get("tg_chat_id", "")
         if not token or not chat_id:
             return jsonify({"success": False, "message": "Telegram ayarları eksik."}), 400
         

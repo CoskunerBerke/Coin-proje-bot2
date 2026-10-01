@@ -50,6 +50,25 @@ def test_manual_close_uses_turkey_time_and_correct_pnl(client, app_mod, monkeypa
     assert trade["pnl_usdt"] == pytest.approx(14.96)
 
 
+def test_sync_credentials_fall_back_when_env_vars_are_blank(workdir, monkeypatch):
+    # .env.example ships "TELEGRAM_DATA_CHAT_ID=" (blank) and documents a fallback to TELEGRAM_CHAT_ID.
+    monkeypatch.setenv("TELEGRAM_TOKEN", "")
+    monkeypatch.setenv("TELEGRAM_DATA_CHAT_ID", "")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "-100123")
+    (workdir / "persistent_settings.json").write_text(json.dumps({"tg_token": "saved-token"}), encoding="utf-8")
+    token, chat_id = db_manager_module.db_manager._get_sync_credentials()
+    assert token == "saved-token"
+    assert chat_id == "-100123"
+
+
+def test_sync_credentials_prefer_env_over_saved_settings(workdir, monkeypatch):
+    monkeypatch.setenv("TELEGRAM_TOKEN", "env-token")
+    monkeypatch.setenv("TELEGRAM_DATA_CHAT_ID", "-100999")
+    (workdir / "persistent_settings.json").write_text(
+        json.dumps({"tg_token": "saved-token", "tg_data_chat_id": "-1"}), encoding="utf-8")
+    assert db_manager_module.db_manager._get_sync_credentials() == ("env-token", "-100999")
+
+
 def test_danger_reset_skips_telegram_when_chat_is_unset(client, app_mod, monkeypatch):
     """No hard-coded chat IDs: with no Telegram configuration nothing is sent."""
     import sys

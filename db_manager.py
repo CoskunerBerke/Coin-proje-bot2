@@ -90,10 +90,17 @@ class HybridDatabaseManager:
         except Exception:
             settings = {}
             
-        token = os.getenv("TELEGRAM_TOKEN", settings.get("tg_token", ""))
-        # 📊 DATA kanalı — sync ve görüntüleme buradan
-        data_chat_id = os.getenv("TELEGRAM_DATA_CHAT_ID", settings.get("tg_data_chat_id", os.getenv("TELEGRAM_CHAT_ID", settings.get("tg_chat_id", ""))))
-        
+        # Boş tanımlı ortam değişkeni (ör: .env.example'dan kopyalanan "TELEGRAM_DATA_CHAT_ID=")
+        # bir sonraki kaynağa düşmeyi engellememeli → `or` zinciri
+        token = os.getenv("TELEGRAM_TOKEN") or settings.get("tg_token", "")
+        # 📊 DATA kanalı — sync ve görüntüleme buradan (boşsa işlem kanalına düşer)
+        data_chat_id = (
+            os.getenv("TELEGRAM_DATA_CHAT_ID")
+            or settings.get("tg_data_chat_id")
+            or os.getenv("TELEGRAM_CHAT_ID")
+            or settings.get("tg_chat_id", "")
+        )
+
         return token, data_chat_id
 
     def _merge_trades(self, local_trades, cloud_trades):
