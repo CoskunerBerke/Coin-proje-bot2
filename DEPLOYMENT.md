@@ -38,7 +38,7 @@ Render, projelerinizi doğrudan GitHub'dan çekip barındıran harika bir bulut 
    - **Branch:** `main`
    - **Runtime:** `Python`
    - **Build Command:** `pip install -r requirements.txt`
-   - **Start Command:** `streamlit run main.py --server.port $PORT --server.address 0.0.0.0` (Dosyalardaki `Procfile` sayesinde bunu otomatik de algılayabilir).
+   - **Start Command:** `python app.py` (Flask API + arka plan bot motoru; `Procfile` ile aynı). Port, Render'ın verdiği `PORT` değişkeninden okunur.
    - **Instance Type:** `Free` (Ücretsiz plan).
 
 5. **API Anahtarlarını (Çevre Değişkenleri) Ekleyin:**
@@ -46,11 +46,14 @@ Render, projelerinizi doğrudan GitHub'dan çekip barındıran harika bir bulut 
    
    | Key | Value (Değerleriniz) |
    |-----|-----|
-   | `BINANCE_API_KEY` | Binance Spot/Futures API Keyiniz |
-   | `BINANCE_SECRET_KEY` | Binance API Secret Keyiniz |
-   | `CRYPTOPANIC_API_KEY` | CryptoPanic API Keyiniz (Haberler için) |
+   | `ADMIN_TOKEN` | Panelden ayar kaydetme / işlem kapatma için yönetici anahtarı (uzun rastgele bir değer). Tanımlanmazsa bu işlemler 503 döner. |
+   | `CORS_ORIGINS` | Paneli yayınladığınız adres(ler), virgülle (Örn: `https://<panel-adresiniz>.vercel.app`). Boşsa tarayıcıdan farklı bir adresteki panel API'ye erişemez. |
+   | `CRYPTOPANIC_API_KEY` | CryptoPanic API Keyiniz (Haberler için, isteğe bağlı) |
    | `TELEGRAM_TOKEN` | Telegram bot belirteciniz (Örn: `123456:ABC...`) |
-   | `TELEGRAM_CHAT_ID` | Telegram chat/grup ID'niz (Örn: `987654321`) |
+   | `TELEGRAM_CHAT_ID` | İşlem bildirimlerinin gideceği chat/grup ID'niz (Örn: `987654321`) |
+   | `TELEGRAM_DATA_CHAT_ID` | JSON yedeğinin sabitleneceği chat ID (isteğe bağlı; boşsa `TELEGRAM_CHAT_ID`) |
+
+   Binance API anahtarı gerekmez: motor simülasyon moduna kilitlidir ve gerçek emir göndermez.
 
 6. **Dağıtımı Başlatın:** En alttaki **Create Web Service** butonuna tıklayın. Render botu kurup çalıştıracaktır. Kurulum tamamlandığında size üstte `https://kripto-analiz-botu.onrender.com` benzeri canlı bir web adresi verecektir. Bu adresi kopyalayın!
 
