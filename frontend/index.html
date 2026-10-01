@@ -853,6 +853,43 @@
             }, 3000);
         }
 
+        // 🔐 Yönetici anahtarı (ADMIN_TOKEN): sadece durum değiştiren işlemler için bir kez sorulur,
+        // bu sekme açık kaldığı sürece sessionStorage'da tutulur. Okuma ekranları anahtarsız çalışır.
+        const ADMIN_TOKEN_STORAGE_KEY = "admin_token";
+
+        function getAdminToken(forcePrompt = false) {
+            let token = "";
+            try { token = sessionStorage.getItem(ADMIN_TOKEN_STORAGE_KEY) || ""; } catch (e) {}
+            if (!token || forcePrompt) {
+                const entered = window.prompt("Bu işlem için yönetici anahtarı (ADMIN_TOKEN) gerekli.\nAnahtar bu sekme kapanana kadar saklanır:");
+                token = (entered || "").trim();
+                if (token) {
+                    try { sessionStorage.setItem(ADMIN_TOKEN_STORAGE_KEY, token); } catch (e) {}
+                }
+            }
+            return token;
+        }
+
+        async function adminFetch(url, options = {}) {
+            const send = (token) => fetch(url, {
+                ...options,
+                headers: { ...(options.headers || {}), "X-Admin-Token": token }
+            });
+            let token = getAdminToken(false);
+            if (!token) {
+                return new Response(JSON.stringify({ status: "error", success: false, message: "Yönetici anahtarı girilmedi." }),
+                    { status: 401, headers: { "Content-Type": "application/json" } });
+            }
+            let res = await send(token);
+            if (res.status === 401) {
+                // Yanlış/eski anahtar: sil ve bir kez daha sor
+                try { sessionStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY); } catch (e) {}
+                token = getAdminToken(true);
+                if (token) res = await send(token);
+            }
+            return res;
+        }
+
         function createNotificationContainer() {
             const container = document.createElement("div");
             container.id = "notification-container";
@@ -912,7 +949,10 @@
                 updateLeverageVal(data.leverage || 1);
 
                 document.getElementById("tg-active-toggle").checked = data.tg_active || false;
-                document.getElementById("tg-token-input").value = data.tg_token || "";
+                // Sunucu token'ı asla geri göndermez; sadece kayıtlı olup olmadığını bildirir
+                const tokenInput = document.getElementById("tg-token-input");
+                tokenInput.value = "";
+                tokenInput.placeholder = data.tg_token_set ? "Kayıtlı (değiştirmek için yeni token girin)" : "Token giriniz";
                 document.getElementById("tg-chat-id-input").value = data.tg_chat_id || "";
                 document.getElementById("tg-data-chat-id-input").value = data.tg_data_chat_id || "";
 
@@ -957,14 +997,18 @@
             };
             
             try {
-                const res = await fetch(`${apiBase}/api/settings`, {
+                const res = await adminFetch(`${apiBase}/api/settings`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(payload)
                 });
+                const resData = await res.json().catch(() => ({}));
                 if (res.ok) {
-                    const resData = await res.json();
                     settingsStore = resData.settings;
+                    showNotification("Ayarlar kaydedildi.", "success");
+                } else {
+                    showNotification("Ayarlar kaydedilemedi: " + (resData.message || res.status), "error");
+                    fetchSettings(); // Formu sunucudaki gerçek değerlere geri döndür
                 }
             } catch (err) {
                 console.error("Settings save error:", err);
@@ -976,13 +1020,13 @@
             const tgToken = document.getElementById("tg-token-input").value.trim();
             const tgChatId = document.getElementById("tg-chat-id-input").value.trim();
             
-            if (!tgToken || !tgChatId) {
+            if ((!tgToken && !settingsStore.tg_token_set) || !tgChatId) {
                 alert("Lütfen önce Bot Token ve Chat ID alanlarını doldurunuz!");
                 return;
             }
 
             try {
-                const res = await fetch(`${apiBase}/api/telegram-test`, {
+                const res = await adminFetch(`${apiBase}/api/telegram-test`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ tg_token: tgToken, tg_chat_id: tgChatId })
@@ -1365,7 +1409,7 @@
         async function sendMemoryReport(btn) {
             if (btn) { btn.disabled = true; btn.textContent = "📤 Gönderiliyor..."; }
             try {
-                const res = await fetch(`${apiBase}/api/memory-report`, { method: 'POST' });
+                const res = await adminFetch(`${apiBase}/api/memory-report`, { method: 'POST' });
                 const data = await res.json();
                 if (data.success) {
                     if (btn) { btn.textContent = "✅ Gönderildi!"; setTimeout(() => { btn.textContent = "📊 Telegram Raporu Gönder"; btn.disabled = false; }, 3000); }
@@ -1590,7 +1634,7 @@
         async function closeTrade(tradeId) {
             if (!confirm("Bu pozisyonu anlık piyasa fiyatından kapatıp kârınızı realize etmek istediğinize emin misiniz?")) return;
             try {
-                const res = await fetch(`${apiBase}/api/close-trade/${tradeId}`, {
+                const res = await adminFetch(`${apiBase}/api/close-trade/${encodeURIComponent(tradeId)}`, {
                     method: "POST"
                 });
                 const data = await res.json();

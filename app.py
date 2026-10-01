@@ -4,6 +4,8 @@ Kripto Bot Arka Plan & REST API Sunucusu (app.py)
 
 from flask import Flask, jsonify, request
 from flask_cors import CORS
+from functools import wraps
+import hmac
 import os
 import json
 import threading
@@ -20,7 +22,55 @@ from sentiment_analysis import SentimentAnalyzer
 from signal_generator import SignalGenerator
 
 app = Flask(__name__)
-CORS(app)  # CORS politikası engellemelerini tamamen önler
+
+
+def parse_cors_origins(raw):
+    """CORS_ORIGINS değerini (virgülle ayrılmış liste) temiz bir origin listesine çevirir."""
+    return [o.strip().rstrip("/") for o in (raw or "").split(",") if o.strip()]
+
+
+def configure_cors(flask_app, raw_origins):
+    """🔒 CORS sadece CORS_ORIGINS içindeki adreslere açılır.
+    Değişken boşsa CORS başlığı hiç eklenmez (yalnızca aynı origin)."""
+    origins = parse_cors_origins(raw_origins)
+    if origins:
+        CORS(flask_app, origins=origins)
+    return origins
+
+
+configure_cors(app, os.getenv("CORS_ORIGINS", ""))
+
+# 🔐 Yönetici anahtarı: durum değiştiren tüm uç noktalar bu başlığı ister
+ADMIN_TOKEN_HEADER = "X-Admin-Token"
+
+
+def require_admin(view):
+    """ADMIN_TOKEN tanımlı değilse 503, anahtar yanlış/eksikse 401 döner (sabit zamanlı karşılaştırma)."""
+    @wraps(view)
+    def wrapper(*args, **kwargs):
+        expected = os.getenv("ADMIN_TOKEN", "").strip()
+        if not expected:
+            return jsonify({
+                "status": "error", "success": False,
+                "message": "Yönetici işlemleri devre dışı: sunucuda ADMIN_TOKEN tanımlı değil."
+            }), 503
+        provided = request.headers.get(ADMIN_TOKEN_HEADER, "")
+        if not hmac.compare_digest(provided.encode("utf-8"), expected.encode("utf-8")):
+            return jsonify({
+                "status": "error", "success": False,
+                "message": "Yetkisiz: geçerli bir yönetici anahtarı (X-Admin-Token) gerekli."
+            }), 401
+        return view(*args, **kwargs)
+    return wrapper
+
+
+def public_settings(settings):
+    """Ayarları istemciye dönmeden önce Telegram bot token'ını gizler."""
+    safe = dict(settings)
+    token = safe.pop("tg_token", "") or ""
+    safe["tg_token"] = ""
+    safe["tg_token_set"] = bool(token)
+    return safe
 
 def sanitize_nan(data):
     """Sözlük veya listelerdeki tüm NaN veya inf değerleri JSON uyumlu None (null) ile değiştirir.
@@ -236,8 +286,12 @@ def start_bot_thread():
     thread.start()
 
 # Git takibini çalıştır ve botu başlat
+# DISABLE_BOT_ENGINE=1 → sadece API (testler ve çevrimdışı demo için; varsayılan kapalı)
 track_git_diff()
-start_bot_thread()
+if os.getenv("DISABLE_BOT_ENGINE", "").strip().lower() in ("1", "true", "yes"):
+    add_log("⏸️ DISABLE_BOT_ENGINE aktif: arka plan bot motoru başlatılmadı (yalnızca API).")
+else:
+    start_bot_thread()
 
 @app.route("/")
 def index():
@@ -346,6 +400,7 @@ def get_trade_memory():
     return jsonify({"memory": {}, "stats": {}, "overall": {"total_trades": 0, "total_wins": 0, "win_rate": 0, "total_pnl": 0}})
 
 @app.route("/api/memory-report", methods=["POST"])
+@require_admin
 def send_memory_report_telegram():
     """Hafıza raporunu Telegram'a gönderir."""
     try:
@@ -380,37 +435,50 @@ def get_spot_portfolio():
             return jsonify({"error": f"Spot portföyü okunamadı: {str(e)}"}), 500
     return jsonify([])
 
-@app.route("/api/settings", methods=["GET", "POST"])
-def manage_settings():
-    if request.method == "POST":
-        try:
-            data = request.json
-            if not data:
-                return jsonify({"status": "error", "message": "Boş veri gönderildi"}), 400
-            save_app_settings(data)
-            return jsonify({"status": "success", "settings": data})
-        except Exception as e:
-            return jsonify({"status": "error", "message": str(e)}), 500
-    else:
-        settings = load_app_settings()
-        # Render env vars override empty settings for Telegram
-        env_token = os.getenv("TELEGRAM_TOKEN", "")
-        env_chat = os.getenv("TELEGRAM_CHAT_ID", "")
-        env_data_chat = os.getenv("TELEGRAM_DATA_CHAT_ID", "")
-        if env_token and not settings.get("tg_token"):
-            settings["tg_token"] = env_token
-            settings["tg_active"] = True
-        if env_chat and not settings.get("tg_chat_id"):
-            settings["tg_chat_id"] = env_chat
-        if env_data_chat and not settings.get("tg_data_chat_id"):
-            settings["tg_data_chat_id"] = env_data_chat
-        
-        # 🔒 SABİT DEĞERLER: Frontend her zaman doğru göstersin
-        settings["bot_active"] = True
-        settings["sim_mode"] = True
-        settings["leverage"] = 3
-        
-        return jsonify(settings)
+@app.route("/api/settings", methods=["POST"])
+@require_admin
+def update_settings():
+    try:
+        data = request.get_json(silent=True)
+        if not data or not isinstance(data, dict):
+            return jsonify({"status": "error", "message": "Boş veri gönderildi"}), 400
+        data = dict(data)
+        data.pop("tg_token_set", None)
+        # 🔒 Panel token'ı hiç görmez; boş gelirse kayıtlı token korunur
+        if not data.get("tg_token"):
+            stored_token = load_app_settings().get("tg_token", "")
+            if stored_token:
+                data["tg_token"] = stored_token
+        save_app_settings(data)
+        return jsonify({"status": "success", "settings": public_settings(data)})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/settings", methods=["GET"])
+def get_settings():
+    settings = load_app_settings()
+    if not isinstance(settings, dict):
+        settings = {}
+    # Render env vars override empty settings for Telegram
+    env_token = os.getenv("TELEGRAM_TOKEN", "")
+    env_chat = os.getenv("TELEGRAM_CHAT_ID", "")
+    env_data_chat = os.getenv("TELEGRAM_DATA_CHAT_ID", "")
+    if env_token and not settings.get("tg_token"):
+        settings["tg_token"] = env_token
+        settings["tg_active"] = True
+    if env_chat and not settings.get("tg_chat_id"):
+        settings["tg_chat_id"] = env_chat
+    if env_data_chat and not settings.get("tg_data_chat_id"):
+        settings["tg_data_chat_id"] = env_data_chat
+
+    # 🔒 SABİT DEĞERLER: Frontend her zaman doğru göstersin
+    settings["bot_active"] = True
+    settings["sim_mode"] = True
+    settings["leverage"] = 3
+
+    # 🔐 Bot token'ı herkese açık GET yanıtında asla dönmez
+    return jsonify(public_settings(settings))
 
 @app.route("/api/logs", methods=["GET"])
 def get_logs():
@@ -435,10 +503,13 @@ def get_balance():
         return jsonify({"balance": 1000.0, "error": str(e)})
 
 @app.route("/api/telegram-test", methods=["POST"])
+@require_admin
 def telegram_test():
     try:
-        data = request.json
-        token = data.get("tg_token")
+        data = request.get_json(silent=True) or {}
+        settings = load_app_settings()
+        # Panel token'ı göremediği için boş gelirse kayıtlı / ortam değişkenindeki token kullanılır
+        token = data.get("tg_token") or settings.get("tg_token") or os.getenv("TELEGRAM_TOKEN", "")
         chat_id = data.get("tg_chat_id")
         if token and chat_id:
             from telegram_notifier import TelegramNotifier
@@ -450,6 +521,7 @@ def telegram_test():
         return jsonify({"success": False, "message": str(e)}), 500
 
 @app.route("/api/close-trade/<trade_id>", methods=["POST"])
+@require_admin
 def close_trade_manually(trade_id):
     try:
         trades = executor.get_trade_history()
@@ -512,16 +584,17 @@ def close_trade_manually(trade_id):
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route("/api/danger-reset-db", methods=["POST"])
+@require_admin
 def danger_reset_db():
     try:
         import requests
         from scratch.archive_and_reset_data import archive_and_reset
         archive_and_reset()
-        
+
         # Clear in-memory executor database list
         executor.trades = []
         executor.save_trade_history([])
-        
+
         # Unpin from Telegram if applicable
         try:
             from config import load_app_settings
