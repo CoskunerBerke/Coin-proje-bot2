@@ -109,8 +109,10 @@ All state lives in JSON files that four kinds of thread read and write:
 | Cloud pull | `sync_db_async` on `GET /api/trades` or `/api/avoided`, at most every 20 s | merges the pinned backup into memory, trades and avoided trades (plain overwrite) |
 | Upload timer | `push_to_cloud`, 15 s after the last trade-file write (debounced) | reads trades, avoided trades and memory; sends `db_backup.json` |
 
-There is no file lock. `HybridDatabaseManager.lock` serialises only the cloud pull and the upload with each other; the
-engine and the request threads never take it. Atomic replace keeps readers away from half-written trade files written
+There is no file lock. `HybridDatabaseManager.lock` is held by the cloud pull across all its Telegram calls (timeouts of
+5 to 10 s each) and, briefly, by `push_to_cloud` to reschedule the upload timer. Every trade-file write by the engine
+and by the close route calls `push_to_cloud`, so an engine tick or an admin close can wait behind a running pull. The
+lock does not cover anyone's read-modify-write of the trade files. Atomic replace keeps readers away from half-written trade files written
 by the engine or the close route, but it does not prevent lost updates: [`update_positions`](../trade_executor.py) reads
 the whole list, makes network calls and writes the list back, so an admin close in between is overwritten, and the
 cloud pull can overwrite a newer engine write with its merge. The engine and the close route also share the temp name
@@ -250,7 +252,7 @@ Everything is JSON in the working directory (git-ignored): `bot_trades.json` (tr
 | `pnl_yuzde`, `pnl_usdt` | Leveraged PnL after 2 × 0.04 % commission |
 | `support_level`, `resistance_level` | 1h 20-candle low/high at entry |
 | `ml_data`, `entry_features`, `market_regime` | Indicator snapshot reused as training features; regime at entry |
-| `max_favorable_excursion`, `max_adverse_excursion`, `realized_R_multiple` | Excursions and exit move in R as measured in [5.6](#56-the-simulated-trade-executor) |
+| `max_favorable_excursion`, `max_adverse_excursion`, `realized_R_multiple` | Excursions as of the last `update_positions` tick; the exit move in R as measured in [5.6](#56-the-simulated-trade-executor) for exit-rule closes only (it stays 0.0 for every other close) |
 | `tp1_hit`, `tp1_pnl_usdt`, `trailing_active` | Partial take-profit and trailing state |
 | `exit_reason`, `quality_score`, `outcome` | Why it closed; 0 to 100 score; 0/1 label |
 
@@ -422,10 +424,11 @@ time limit of 24 × 15 min (doubled when `m` ≥ 0.65).
 
 **How R, MFE and MAE are measured.** Every tick computes `excursion_r = move from entry / |entry − stop_loss|` with the
 stop as it is at that tick, and 2 % of entry when the stop equals entry. MFE and MAE keep the maxima of that value;
-`realized_R_multiple` is its value at the closing tick. The unit is the initial stop distance only while the stop is
+For exit-rule closes, `realized_R_multiple` is its value at the closing tick. The unit is the initial stop distance only while the stop is
 untouched: after TP1 the stop sits at entry, so later values use 2 % of entry, and a momentum-decay tightening halves
-the unit. Invalidation closes compute R against 2 % of entry from the start. One trade's MFE and MAE can therefore mix
-units, which matters for the labels in 5.7.
+the unit. One trade's MFE and MAE can therefore mix units, which matters for the labels in 5.7. Invalidation closes
+compute an R against 2 % of entry, but store it only in `exit_features` / `result_metrics`, which no learning code
+reads; the trade's own `realized_R_multiple` stays at the 0.0 written at entry, and MFE/MAE keep the last tick's values.
 
 **Engine guards** ([`bot_engine.py`](../bot_engine.py)): `get_daily_loss_stats` stops new entries for the rest of the
 Turkey-time day after 3 consecutive losses or a day's closed PnL of −3 % of the current balance. The invalidation guard
@@ -436,30 +439,35 @@ closes a trade when the new scan points the other way with confidence ≥ 85 (+5
 
 Which closes reach which part of the learning layer:
 
-| Close path | Coin memory | Meta-filter training |
-|---|---|---|
-| Exit rules in `update_positions` | yes | while the trade is in `bot_trades.json` |
-| Invalidation guard in `run_engine` | yes | same |
-| Admin close (`/api/close-trade`) | no | same |
-| Duplicate cleanup at start-up | no | same, with PnL 0 |
+| Close path | Coin memory | Meta-filter training | 24 h counterfactual follow-up |
+|---|---|---|---|
+| Exit rules in `update_positions` | yes | while the trade is in `bot_trades.json` | yes |
+| Invalidation guard in `run_engine` | yes (with R = 0.0) | same, R falls back to PnL | yes |
+| Admin close (`/api/close-trade`) | no | same, R falls back to PnL | no |
+| Duplicate cleanup at start-up | no | same, with PnL 0 | no |
 
 - **Coin memory.** [`log_completed_trade`](../coin_intelligence.py) stores a vector, the PnL and an outcome (1 if TP1
   hit, R ≥ 0.75 or PnL ≥ 1 %). It reads the regime from `trade["regime"]`, but trades store `market_regime`, so every
   entry is tagged `RANGE`. [`evaluate_final_intelligence`](../coin_intelligence.py) compares the live vector with the
-  three most similar entries of the live regime and rejects on low historical edge, a high fakeout rate in a range, or a
-  low combined score. Because of the tag, only a `RANGE` signal sees its own regime's history; in other regimes the
-  similarity uses all entries and the historical edge falls back to cold-start defaults. The signal path reads the
+  three most similar entries of the same regime (all of the coin's entries when fewer than 3 match) and rejects on low
+  historical edge, a high fakeout rate in a range, or a low combined score. Because every entry is tagged `RANGE`, the
+  similarity search always runs over all of the coin's entries, whatever the live regime. The regime changes only the
+  historical edge: a `RANGE` signal with at least 5 entries gets expectancy statistics over the whole memory (which can
+  trigger the hard low-edge reject), and every other regime gets the cold-start defaults. No signal is ever matched
+  against the history of the regime it actually traded in. The signal path reads the
   memory loaded when the engine started (`SignalGenerator.__init__`), so entries written later count only after a
   restart.
 - **Meta-filter.** [`update_weights_from_history`](../signal_generator.py) needs 20 closed trades in `bot_trades.json`.
   It labels the last 100 by `0.45·R + 0.20·MFE/max(0.1, MAE) + 0.25·exit_eff − duration_penalty`, where `exit_eff` is
   1.0 when the exit reason contains `TP`, `TS` or `AI_KAR` (only `TP (Üst Bariyer)` does) and 0.2 otherwise, the
-  penalty is 0.10 per day held (at most 0.2), and `R` falls back to `pnl_yuzde / (leverage·100)` when it is exactly 0.
+  penalty is 0.10 per day held (at most 0.2), and `R` falls back to `pnl_yuzde / (leverage·100)` when it is exactly 0, which is the case for every close except the
+  exit rules.
   Scores ≥ 0.55 are 1, ≤ 0.45 are 0, the rest are dropped; with 20 labels left it trains
   [`QuantMetaFilter`](../signal_generator.py), a NumPy logistic regression on 15 features. Untrained it answers 0.90.
   The same function re-estimates factor weights over 50/200/1000-trade windows, but the signal path never reads them.
-- **Counterfactuals.** [`CounterfactualAnalyzer`](../counterfactual_analyzer.py) follows closed trades and rejected
-  directional signals for 24 h. Early exits raise "exit patience" (up to ×1.5 on the target); missed profits raise
+- **Counterfactuals.** [`CounterfactualAnalyzer`](../counterfactual_analyzer.py) follows trades closed by the exit rules or the
+  invalidation guard (`track_post_exit`; admin and duplicate-cleanup closes are not followed) and rejected directional
+  signals (`track_missed_entry`) for 24 h. Early exits raise "exit patience" (up to ×1.5 on the target); missed profits raise
   "entry courage" (up to ×1.3, dividing the confidence threshold).
 
 ### 5.8 Telegram, API, panel and security model
@@ -612,10 +620,14 @@ anlatır; okurken bulunan ama düzeltilmeyen sorunlar 8. bölümdedir.
   ve ilk kapanışta sıçrayabilir.
 - **İşlem yöneticisi:** bakiyenin %2 ile %20'si arası marjin; olasılık eşik + 0,10'un altındaysa boyut yarıya iner.
   Momentum 0,45 ile 0,65 arasındaysa TP1 (yarısı realize, stop girişe), 0,65 ve üstünde takip eden stop, 0,45'in
-  altında kâr `max(%1,5, ATR%)` seviyesine ulaşınca tam çıkış. R o anki stop mesafesiyle ölçülür; TP1'den sonra girişin %2'si birim olur.
+  altında kâr `max(%1,5, ATR%)` seviyesine ulaşınca tam çıkış. R o anki stop mesafesiyle ölçülür; TP1'den sonra girişin %2'si birim olur. İşlemin kendi R değeri yalnız çıkış
+  kurallarıyla kapanışta yazılır; diğer kapanışlarda 0 kalır ve meta-filtre etiketinde PnL'e dayalı yedek değer kullanılır.
 - **Öğrenme:** coin hafızasına yalnızca çıkış kuralları ve sinyal bozulma kalkanı yazar (manuel ve çift kayıt
-  kapanışları yazmaz), tüm kayıtlar `RANGE` etiketlidir ve sinyal hesabı motor açılışındaki hafıza kopyasını okur.
-- **Eşzamanlılık:** motor, istek, yedek çekme ve yükleme iş parçacıkları aynı JSON dosyalarını kilitsiz kullanır;
+  kapanışları yazmaz), tüm kayıtlar `RANGE` etiketlidir (bu yüzden benzerlik araması rejimden bağımsız olarak coinin tüm kayıtlarında
+  yapılır) ve sinyal hesabı motor açılışındaki hafıza kopyasını okur. 24 saatlik karşı-olgusal takip yalnız çıkış
+  kuralı ve sinyal bozulma kalkanı kapanışlarını ve reddedilen sinyalleri izler.
+- **Eşzamanlılık:** motor, istek, yedek çekme ve yükleme iş parçacıkları aynı JSON dosyalarını dosya kilidi olmadan kullanır (yedek çekme sürerken motorun ve kapatma isteğinin yazımları
+  yükleme zamanlayıcısının kilidinde bekleyebilir);
   motorun işlem dosyası yazımları atomik değiştirmeyle, yedek çekme ve hafıza yazımları düz üzerine yazmayla yapılır.
 - **Güvenlik:** durum değiştiren her uç nokta `X-Admin-Token` ister (`ADMIN_TOKEN` yoksa 503, yanlışsa 401), CORS izin
   listesi, token gizleme, coin sembolü doğrulaması.
